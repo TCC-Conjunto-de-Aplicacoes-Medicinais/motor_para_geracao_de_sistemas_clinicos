@@ -1,0 +1,11 @@
+{
+    "identity": {
+        "clinicName": "Clinica Teste Local",
+        "palette": "green"
+    },
+    "technical": {
+        "estimatedPrice": {
+            "monthly": 1845
+        }
+    }
+}

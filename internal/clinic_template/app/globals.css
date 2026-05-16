@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Cores Padrões (Fallback) - Serão sobrescritas pelo ThemeProvider baseado no JSON */
+  --color-primary: #1E3A8A; 
+  --color-accent: #3B82F6;
+  
+  --bg-app: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-glass: #FFFFFF; /* Trocado de translúcido para sólido */
+  
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+
+  --border-color: #E2E8F0;
+  --shadow-sm: 0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12); /* MUI Elevation 1 */
+  --shadow-glass: var(--shadow-sm); /* Fallback */
+
+  /* Badges Colors (Light Mode) */
+  --badge-blue-bg: rgba(59, 130, 246, 0.1);
+  --badge-blue-text: #1D4ED8;
+  --badge-green-bg: rgba(16, 185, 129, 0.1);
+  --badge-green-text: #047857;
+  --badge-yellow-bg: rgba(245, 158, 11, 0.1);
+  --badge-yellow-text: #B45309;
+  --badge-red-bg: rgba(239, 68, 68, 0.1);
+  --badge-red-text: #B91C1C;
+  --badge-purple-bg: rgba(124, 58, 237, 0.1);
+  --badge-purple-text: #6D28D9;
+
+  --font-sans: 'Inter', sans-serif;
+}
+
+[data-theme='dark'] {
+  --bg-app: #0B0F19; /* Mais escuro estilo MUI Dark */
+  --bg-card: #1E293B;
+  --bg-glass: #1E293B; /* Sólido escuro */
+  
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+
+  --border-color: #334155;
+  --shadow-glass: 0px 2px 1px -1px rgba(0,0,0,0.4), 0px 1px 1px 0px rgba(0,0,0,0.28), 0px 1px 3px 0px rgba(0,0,0,0.24);
+
+  /* Badges Colors (Dark Mode) - Maior luminosidade no texto e fundo mais suave */
+  --badge-blue-bg: rgba(59, 130, 246, 0.2);
+  --badge-blue-text: #93C5FD;
+  --badge-green-bg: rgba(16, 185, 129, 0.2);
+  --badge-green-text: #6EE7B7;
+  --badge-yellow-bg: rgba(245, 158, 11, 0.2);
+  --badge-yellow-text: #FCD34D;
+  --badge-red-bg: rgba(239, 68, 68, 0.2);
+  --badge-red-text: #FCA5A5;
+  --badge-purple-bg: rgba(124, 58, 237, 0.2);
+  --badge-purple-text: #C4B5FD;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Utilitários Premium (Agora estilo Material Design) */
+.glass-panel {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  border-radius: 8px; /* MUI usa bordas mais quadradas que 16px */
+  box-shadow: var(--shadow-glass);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.clinic-logo {
+  color: var(--color-primary);
+}
+
+[data-theme='dark'] .clinic-logo {
+  color: var(--color-accent); /* Uses the lighter color defined in palettes for dark mode */
+}

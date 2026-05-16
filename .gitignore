@@ -1,0 +1,23 @@
+# Build e Dependências
+node_modules/
+.states/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+
+# Executáveis
+/api
+*.exe
+
+# Next.js / Cache
+.next/
+out/
+
+# Vatiables
+.env
+
+# lock
+package-lock.json
