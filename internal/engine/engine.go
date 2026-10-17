@@ -384,7 +384,7 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 
 	// 4. Inicializar Frontend da Clínica em processo nativo (porta 3001)
 	updateStatus(workDir, "provisioning", "Iniciando Interface Web da Clínica (Next.js)...", "", "", "")
-	frontCmd := exec.Command("cmd", "/C", "npm run start -- -p 3001")
+	frontCmd := exec.Command("cmd", "/C", "npx next dev -p 3001")
 	frontCmd.Dir = absTemplate
 	frontCmd.Stdout = os.Stdout
 	frontCmd.Stderr = os.Stderr

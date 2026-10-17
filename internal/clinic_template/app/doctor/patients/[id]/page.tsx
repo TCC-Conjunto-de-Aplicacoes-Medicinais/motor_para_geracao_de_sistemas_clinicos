@@ -65,6 +65,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   // Modais
   const [showMedModal, setShowMedModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<any | null>(null);
   const [medForm, setMedForm] = useState({ name: '', freq: '' });
   const [prescriptionText, setPrescriptionText] = useState('Receituário Padrão\n\nPaciente: Maria Santos\n\nPrescrição:\n1. \n\n\nAssinatura: Dr. Silva');
 
@@ -350,6 +351,188 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         </div>
       )}
 
+      {/* Modal de Visualização de Exames Online (MinIO S3) */}
+      {selectedExam && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', padding: '1rem' }}>
+          <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+            
+            {/* Header do Exame */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.2rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '1.4rem' }}>{selectedExam.type === 'pdf' ? '📄' : '🖼️'}</span>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{selectedExam.name}</h3>
+                </div>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
+                  Data: {selectedExam.date} • Tamanho: {selectedExam.size} • Paciente: Maria Santos
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedExam(null)} 
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '0.3rem 0.6rem', borderRadius: '6px' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Badge de Armazenamento Online MinIO S3 */}
+            <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <span style={{ fontSize: '1.1rem' }}>☁️</span>
+                <div>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-accent)', display: 'block' }}>
+                    Armazenado no Object Storage (MinIO S3 / pohinc-exams)
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    URI: s3://pohinc-exams/patients/1/{selectedExam.name}
+                  </span>
+                </div>
+              </div>
+              <span style={{ padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>
+                ✓ Íntegro & Online
+              </span>
+            </div>
+
+            {/* Conteúdo Renderizado do Documento */}
+            {selectedExam.name.toLowerCase().includes('hemograma') ? (
+              <div style={{ backgroundColor: 'var(--bg-app)', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.8rem' }}>🔬 Laudo Laboratorial — Hemograma Completo</h4>
+                
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '0.4rem 0' }}>Parâmetro</th>
+                      <th>Resultado</th>
+                      <th>Valor de Referência</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemácias</td>
+                      <td>4.85 milhões/mm³</td>
+                      <td style={{ color: 'var(--text-muted)' }}>4.00 - 5.40 milhões/mm³</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemoglobina</td>
+                      <td>14.2 g/dL</td>
+                      <td style={{ color: 'var(--text-muted)' }}>12.0 - 16.0 g/dL</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hematócrito</td>
+                      <td>42.1 %</td>
+                      <td style={{ color: 'var(--text-muted)' }}>36.0 - 47.0 %</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Leucócitos Totais</td>
+                      <td>6.450 /mm³</td>
+                      <td style={{ color: 'var(--text-muted)' }}>4.000 - 10.000 /mm³</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Plaquetas</td>
+                      <td>245.000 /mm³</td>
+                      <td style={{ color: 'var(--text-muted)' }}>150.000 - 450.000 /mm³</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <div style={{ marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px dashed var(--border-color)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Responsável Técnico: Dra. Valéria Campos — CRF 48.912/SP</span>
+                  <span>Assinatura Digital ICP-Brasil: VÁLIDA</span>
+                </div>
+              </div>
+            ) : selectedExam.name.toLowerCase().includes('ecg') ? (
+              <div style={{ backgroundColor: '#0d1520', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.6rem' }}>
+                  <span>ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES)</span>
+                  <span>72 BPM • RITMO SINUSAL</span>
+                </div>
+                
+                {/* Visual Traçado */}
+                <svg width="100%" height="80" viewBox="0 0 500 80" preserveAspectRatio="none" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: '6px' }}>
+                  <path
+                    d="M 0 40 L 40 40 L 45 42 L 50 10 L 55 60 L 60 40 L 80 40 Q 90 28 100 40 L 140 40 L 145 42 L 150 10 L 155 60 L 160 40 L 180 40 Q 190 28 200 40 L 240 40 L 245 42 L 250 10 L 255 60 L 260 40 L 280 40 Q 290 28 300 40 L 340 40 L 345 42 L 350 10 L 355 60 L 360 40 L 380 40 Q 390 28 400 40 L 440 40 L 445 42 L 450 10 L 455 60 L 460 40 L 500 40"
+                    fill="none"
+                    stroke="#10B981"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginTop: '0.8rem', textAlign: 'center' }}>
+                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PR</span>
+                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>156 ms</strong>
+                  </div>
+                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QRS</span>
+                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>88 ms</strong>
+                  </div>
+                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QTc</span>
+                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>412 ms</strong>
+                  </div>
+                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Eixo</span>
+                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>+45°</strong>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '0.8rem', lineHeight: 1.4 }}>
+                  <strong>Conclusão Clínica:</strong> Traçado dentro dos padrões de normalidade. Ausência de sinais de sobrecarga ou isquemia aguda.
+                </p>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: 'var(--bg-app)', padding: '2rem', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.8rem' }}>📑</span>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{selectedExam.name}</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
+                  Documento clínico arquivado com sucesso no repositório de exames MinIO da clínica.
+                </p>
+                <div style={{ display: 'inline-block', padding: '0.6rem 1.2rem', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981', fontSize: '0.8rem', fontWeight: 600 }}>
+                  ✓ Hash SHA-256 Validado no S3
+                </div>
+              </div>
+            )}
+
+            {/* Footer com Ações */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <button 
+                onClick={() => {
+                  showToast(`✓ Iniciando download seguro de "${selectedExam.name}" a partir do MinIO...`);
+                }}
+                style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                📥 Baixar Arquivo Original
+              </button>
+              <div style={{ display: 'flex', gap: '0.8rem' }}>
+                <button 
+                  onClick={() => window.print()}
+                  style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  🖨️ Imprimir
+                </button>
+                <button 
+                  onClick={() => setSelectedExam(null)} 
+                  style={{ padding: '0.6rem 1.5rem', borderRadius: '6px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* ─── Back + Patient Header ─── */}
       <div>
         <span onClick={() => router.back()} style={{ fontSize: '0.9rem', color: 'var(--color-accent)', cursor: 'pointer', display: 'inline-block', marginBottom: '0.8rem', fontWeight: 500 }}>
@@ -493,16 +676,22 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
                     key={f.id} 
                     draggable 
                     onDragStart={(e) => handleDragStart(e, f.id)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.8rem', borderRadius: '6px', cursor: 'grab', backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-color)' }}
-                    title="Segure e arraste para a IA analisar"
+                    onClick={() => setSelectedExam(f)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0.8rem', borderRadius: '6px', cursor: 'pointer', backgroundColor: 'var(--bg-app)', border: '1px solid var(--border-color)', transition: 'border-color 0.2s' }}
+                    title="Clique para visualizar o exame online (MinIO S3) ou arraste para IA analisar"
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', overflow: 'hidden' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '6px', backgroundColor: 'var(--badge-blue-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <span style={{ fontSize: '1.2rem' }}>{f.type === 'pdf' ? '📄' : '🖼️'}</span>
                       </div>
                       <div style={{ overflow: 'hidden' }}>
-                        <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '220px' }}>{f.name}</p>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{f.date} • {f.size}</span>
+                        <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '190px' }}>{f.name}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{f.date} • {f.size}</span>
+                          <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--color-accent)', fontWeight: 600 }}>Visualizar ↗</span>
+                        </div>
                       </div>
                     </div>
                     <button

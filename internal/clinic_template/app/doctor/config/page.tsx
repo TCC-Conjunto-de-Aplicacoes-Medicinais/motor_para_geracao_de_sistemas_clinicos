@@ -10,6 +10,7 @@ export default function ConfigPage() {
   const [specialty, setSpecialty] = useState('Cardiologia');
   const [crm, setCrm] = useState('12345-SP');
   const [email, setEmail] = useState('dr.silva@clinica.com');
+  const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
@@ -35,19 +36,25 @@ export default function ConfigPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const profile = { name, specialty, crm, email };
-    localStorage.setItem('clinic_doctor_profile', JSON.stringify(profile));
+    setIsSaving(true);
+    setSavedSuccess(false);
 
-    // Atualiza também clinic_user para sincronizar o nome na sessão
-    try {
-      const userStored = localStorage.getItem('clinic_user');
-      const user = userStored ? JSON.parse(userStored) : {};
-      user.name = name;
-      localStorage.setItem('clinic_user', JSON.stringify(user));
-    } catch {}
+    setTimeout(() => {
+      const profile = { name, specialty, crm, email };
+      localStorage.setItem('clinic_doctor_profile', JSON.stringify(profile));
 
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+      // Atualiza também clinic_user para sincronizar o nome na sessão
+      try {
+        const userStored = localStorage.getItem('clinic_user');
+        const user = userStored ? JSON.parse(userStored) : {};
+        user.name = name;
+        localStorage.setItem('clinic_user', JSON.stringify(user));
+      } catch {}
+
+      setIsSaving(false);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 4000);
+    }, 500);
   };
 
   return (
@@ -157,18 +164,23 @@ export default function ConfigPage() {
           <div style={{ marginTop: '1rem', textAlign: 'right' }}>
             <button
               type="submit"
+              disabled={isSaving}
               style={{
                 padding: '0.8rem 2rem',
                 borderRadius: '8px',
                 border: 'none',
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: isSaving ? 'var(--text-muted)' : 'var(--color-primary)',
                 color: '#fff',
                 fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: 'var(--shadow-md)'
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                boxShadow: 'var(--shadow-md)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                transition: 'all 0.2s ease'
               }}
             >
-              Salvar Alterações
+              {isSaving ? 'Salvando alterações... ⏳' : 'Salvar Alterações'}
             </button>
           </div>
         </form>
