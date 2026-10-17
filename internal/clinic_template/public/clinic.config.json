@@ -1,11 +1,85 @@
 {
-    "identity": {
-        "clinicName": "Clinica Teste Local",
-        "palette": "green"
+  "backendUrl": "http://localhost:8081",
+  "createdAt": "2026-04-29T01:08:53.605Z",
+  "id": "8e5080b7-b72d-476d-85ce-6abbee6e99ee",
+  "identity": {
+    "clinicName": "Clinica Teste Local",
+    "logoFile": null,
+    "logoFileName": null,
+    "logoType": "generic",
+    "palette": "green"
+  },
+  "implementation": {
+    "address": "",
+    "type": "managed"
+  },
+  "modules": {
+    "assistant": {
+      "enabled": true,
+      "features": {
+        "billing": true,
+        "billingCheckControl": true,
+        "checkInOut": true,
+        "doctorScheduleView": true,
+        "insurancePlans": true,
+        "patientManagement": true,
+        "scheduling": true
+      },
+      "scope": "global"
     },
-    "technical": {
-        "estimatedPrice": {
-            "monthly": 1845
-        }
+    "doctor": {
+      "enabled": true,
+      "features": {
+        "consultationHistory": true,
+        "dashboard": true,
+        "patientList": true,
+        "patientRecord": {
+          "aiEcg": true,
+          "allergies": true,
+          "digitalSignature": true,
+          "enabled": true,
+          "fileUpload": true,
+          "files": true,
+          "medicationControl": true,
+          "prescriptionTemplate": true,
+          "prescriptions": true,
+          "stampedPrescription": true
+        },
+        "schedule": true
+      }
+    },
+    "management": {
+      "enabled": true,
+      "features": {
+        "attendanceControl": true,
+        "billingByDoctor": true,
+        "billingControl": true,
+        "dashboards": true,
+        "doctorSchedules": true,
+        "staffRegistration": true,
+        "systemCost": true
+      }
+    },
+    "shared": {
+      "settings": true
     }
+  },
+  "technical": {
+    "deploymentType": "web",
+    "drSecondaryEnv": null,
+    "environment": "local",
+    "estimatedPrice": {
+      "currency": "BRL",
+      "monthly": 1845,
+      "setup": 1490
+    },
+    "hasDisasterRecovery": false,
+    "sizing": {
+      "avgAssistants": 2,
+      "avgDoctors": 8,
+      "maxPatients": 560,
+      "minPatients": 230
+    }
+  },
+  "version": "1.0.0"
 }
