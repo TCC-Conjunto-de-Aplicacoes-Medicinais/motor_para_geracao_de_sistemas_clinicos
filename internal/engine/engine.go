@@ -42,11 +42,44 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 		return nil, fmt.Errorf("ambiente '%s' não suportado. Provedores homologados pelo artigo CONIC: 'aws' e 'local'", env)
 	}
 
-	log.Printf("[Engine] Iniciando processamento para clínica '%s' (ID: %s, Solicitante: %s, Ambiente: %s)",
-		payload.Identity.ClinicName, payload.ID, requesterEmail, env)
+	requestedEnv := env
+	isSandbox := false
+	sandboxReason := ""
 
-	// 1. Provisionamento liberado para AWS e Local
-	log.Printf("[Engine] 🚀 Provisionamento autorizado para o ambiente '%s' (Solicitante: %s)", env, requesterEmail)
+	if env == "aws" {
+		// 1. Chave Geral Liga/Desliga da AWS (AWS_ENABLED)
+		awsEnabled := getEnvBool("AWS_ENABLED", true)
+		if !awsEnabled {
+			env = "local"
+			isSandbox = true
+			sandboxReason = "Provisionamento na AWS desativado temporariamente pela chave geral FinOps (AWS_ENABLED=false)."
+			log.Printf("[Engine] 🛑 AWS DESLIGADA: %s Redirecionando para Sandbox de Alta Velocidade.", sandboxReason)
+		} else {
+			// 2. Chave Liga/Desliga da Validação de Whitelist (AWS_REQUIRE_WHITELIST)
+			requireWhitelist := getEnvBool("AWS_REQUIRE_WHITELIST", true)
+			if requireWhitelist && !isAuthorizedAdmin(requesterEmail) {
+				env = "local"
+				isSandbox = true
+				sandboxReason = fmt.Sprintf("Solicitante '%s' não listado na Whitelist de Administradores da AWS. Redirecionado para Sandbox de Alta Velocidade.", requesterEmail)
+				log.Printf("[Engine] 🛡️ Whitelist Ativa: %s", sandboxReason)
+			} else {
+				// 3. Semáforo FinOps de Concorrência (MAX_CONCURRENT_AWS_INSTANCES)
+				maxAWS := getEnvInt("MAX_CONCURRENT_AWS_INSTANCES", 1)
+				activeTimersLock.Lock()
+				currentAWS := len(activeTimers)
+				activeTimersLock.Unlock()
+
+				if currentAWS >= maxAWS {
+					env = "local"
+					isSandbox = true
+					sandboxReason = fmt.Sprintf("Limite FinOps atingido (%d/%d instâncias ativas na AWS). Redirecionado para Sandbox para preservar quota.", currentAWS, maxAWS)
+					log.Printf("[Engine] ⚠️ Semáforo FinOps: %s", sandboxReason)
+				}
+			}
+		}
+	}
+
+	log.Printf("[Engine] 🚀 Provisionamento autorizado para o ambiente '%s' (Solicitado: '%s', Solicitante: %s, Sandbox: %v)", env, requestedEnv, requesterEmail, isSandbox)
 
 	// 2. Mapear o payload para as variáveis do Terraform
 	tfVars := mapPayloadToTFVars(payload, cfg)
@@ -165,13 +198,20 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 
 	log.Printf("[Engine] ✅ Infraestrutura para %s (%s) provisionada com sucesso!", payload.Identity.ClinicName, payload.ID)
 
+	resultMessage := "Infraestrutura provisionada com sucesso"
+	resultMode := env
+	if isSandbox {
+		resultMode = "sandbox"
+		resultMessage = fmt.Sprintf("Clínica provisionada em Sandbox de Alta Velocidade. (%s)", sandboxReason)
+	}
+
 	return &ExecutionResult{
-		Mode:           env,
+		Mode:           resultMode,
 		ClinicID:       payload.ID,
 		ClinicName:     payload.Identity.ClinicName,
 		ClinicURL:      clinicURL,
 		HealthCheckURL: healthURL,
-		Message:        "Infraestrutura provisionada com sucesso",
+		Message:        resultMessage,
 	}, nil
 }
 
@@ -237,11 +277,46 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 }
 
 func isAuthorizedAdmin(email string) bool {
-	expected := os.Getenv("AUTHORIZED_ADMIN_EMAIL")
-	if expected == "" {
-		expected = DefaultAdminEmail
+	cleanEmail := strings.ToLower(strings.TrimSpace(email))
+	if cleanEmail == "" {
+		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(email), expected)
+
+	// Suporta lista separada por vírgula em AUTHORIZED_ADMIN_EMAILS ou único em AUTHORIZED_ADMIN_EMAIL
+	rawList := os.Getenv("AUTHORIZED_ADMIN_EMAILS")
+	if rawList == "" {
+		rawList = os.Getenv("AUTHORIZED_ADMIN_EMAIL")
+	}
+	if rawList == "" {
+		rawList = DefaultAdminEmail
+	}
+
+	for _, item := range strings.Split(rawList, ",") {
+		candidate := strings.ToLower(strings.TrimSpace(item))
+		if candidate != "" && candidate == cleanEmail {
+			return true
+		}
+	}
+	return false
+}
+
+func getEnvBool(key string, defaultVal bool) bool {
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if val == "" {
+		return defaultVal
+	}
+	return val == "true" || val == "1" || val == "yes" || val == "sim" || val == "on"
+}
+
+func getEnvInt(key string, defaultVal int) int {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return defaultVal
+	}
+	if n, err := strconv.Atoi(val); err == nil && n > 0 {
+		return n
+	}
+	return defaultVal
 }
 
 func sanitizeName(name string) string {
