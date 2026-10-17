@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"clinic-backend/internal/database"
 	"clinic-backend/internal/handlers"
@@ -15,16 +16,19 @@ import (
 
 func main() {
 	// Load .env if exists
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	// Initialize Database
 	database.InitDB()
 
-	// Automigrate Models
+	// Automigrate Models (Usuários, Pacientes, Prontuários e Agendamentos)
 	database.DB.AutoMigrate(
 		&models.Doctor{},
 		&models.Assistant{},
 		&models.Administrator{},
+		&models.Patient{},
+		&models.MedicalRecord{},
+		&models.Appointment{},
 	)
 
 	// Seed Initial Data
@@ -41,25 +45,46 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// Health Check
+	// Health Check padronizado (conforme o artigo CONIC 2026 para o ALB da AWS)
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok", "clinic": os.Getenv("CLINIC_NAME")})
+		c.JSON(200, gin.H{
+			"status":      "ok",
+			"clinic_id":   os.Getenv("CLINIC_ID"),
+			"clinic_name": os.Getenv("CLINIC_NAME"),
+			"timestamp":   time.Now().Format(time.RFC3339),
+			"standard":    "HL7-FHIR-R4",
+		})
 	})
 
 	// Auth
 	r.POST("/login", handlers.LoginHandler)
 
+	// Clinical Routes
+	api := r.Group("/api")
+	{
+		// Pacientes
+		api.GET("/patients", handlers.ListPatientsHandler)
+		api.GET("/patients/:id", handlers.GetPatientHandler)
+		api.POST("/patients", handlers.CreatePatientHandler)
+		api.POST("/patients/import-central", handlers.ImportPatientFromCentralHandler)
 
-	// Routes
-	// The motor will inject route groups here
-	// setupDoctorRoutes(r)
-	// setupAssistantRoutes(r)
+		// Prontuários & Laudos (com despacho HL7 FHIR)
+		api.GET("/records", handlers.ListRecordsHandler)
+		api.POST("/records", handlers.CreateRecordHandler)
+
+		// Agendamentos
+		api.GET("/appointments", handlers.ListAppointmentsHandler)
+		api.POST("/appointments", handlers.CreateAppointmentHandler)
+
+		// Análise de IA para ECG (SaMD ANVISA RDC 657/2022)
+		api.POST("/ecg/analyze", handlers.EcgAnalysisHandler)
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s", port)
-	r.Run(":" + port)
+	log.Printf("Servidor da Clínica iniciado na porta %s", port)
+	_ = r.Run(":" + port)
 }

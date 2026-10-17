@@ -11,6 +11,8 @@ terraform.tfstate.backup
 # Executáveis
 /api
 *.exe
+clinic_backend
+internal/clinic_template/back-end/clinic_backend
 
 # Next.js / Cache
 .next/
@@ -21,3 +23,10 @@ out/
 
 # lock
 package-lock.json
+
+# gotmp
+.gotmp/
+
+# TypeScript build info
+*.tsbuildinfo
+

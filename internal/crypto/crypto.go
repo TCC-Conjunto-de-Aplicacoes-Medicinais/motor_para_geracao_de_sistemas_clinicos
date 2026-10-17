@@ -7,6 +7,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 // EncryptedPayload represents the structure received from the frontend
@@ -17,12 +19,12 @@ type EncryptedPayload struct {
 	Version int    `json:"v"`
 }
 
-// DeriveKey creates a 32-byte AES-256 key by hashing the combined seed.
-// The seed should be: email + cnpj + OBJ_KEY
+// DeriveKey creates a 32-byte AES-256 key from three independent sources via PBKDF2.
+// It is identical to deriveCompositeKey in the web project's vault.go.
 func DeriveKey(email, cnpj, objKey string) []byte {
-	seed := fmt.Sprintf("%s%s%s", email, cnpj, objKey)
-	hash := sha256.Sum256([]byte(seed))
-	return hash[:]
+	composite := fmt.Sprintf("%s|%s|%s", email, cnpj, objKey)
+	salt := sha256.Sum256([]byte(fmt.Sprintf("oh_%s_%s", cnpj, objKey[:8])))
+	return pbkdf2.Key([]byte(composite), salt[:], 100000, 32, sha256.New)
 }
 
 // DecryptAESGCM decrypts the base64 encoded payload using the given 32-byte key

@@ -25,7 +25,7 @@ A grande maioria das soluções de *Software as a Service (SaaS)* no setor de sa
 
 * **Isolamento de Dados Estrito:** Cada clínica possui seu próprio banco de dados relacional (MariaDB) e banco não-relacional (Cassandra), além de servidores dedicados (ou containers isolados).
 * **Eficiência de Recursos:** Um algoritmo de "cirurgia de código" estática limpa os diretórios de código de arquivos e caminhos não contratados ou não utilizados (por exemplo, se o módulo médico não for selecionado, todos os arquivos, rotas e modelos do médico são excluídos antes da compilação). Isso diminui o tamanho final do artefato, reduz o consumo de memória e melhora a segurança.
-* **Orquestração Declarativa:** Através do Terraform, a infraestrutura pode ser provisionada localmente (utilizando Docker para fins de desenvolvimento/homologação) ou escalada para nuvens públicas como AWS ou Azure.
+* **Orquestração Declarativa:** Através do Terraform, a infraestrutura pode ser provisionada localmente (utilizando Docker para homologação/desenvolvimento) ou em nuvem pública (Amazon AWS em topologia isolada Single-Tenant).
 
 ---
 
@@ -58,13 +58,11 @@ graph TD
 
     subgraph TargetInfra [Infraestrutura Alvo]
         TFExec -->|Local| Docker[Docker: Containers Front, Back, MariaDB, Cassandra]
-        TFExec -->|AWS| AWS[AWS: Bucket S3, Instâncias EC2]
-        TFExec -->|Azure| Azure[Azure: Resource Groups, Storage Accounts]
+        TFExec -->|AWS| AWS[AWS: VPC Multi-AZ, ALB, EC2 Docker, S3 Isolado]
     end
 
     Docker -->|URLs de Acesso| Client
-    AWS -->|Outputs de Cloud| Client
-    Azure -->|Outputs de Cloud| Client
+    AWS -->|URLs de Acesso / ALB| Client
 ```
 
 ---
@@ -93,8 +91,7 @@ O projeto segue as melhores práticas de layout de código em Go (Standard Go Pr
 │   ├── models/
 │   │   └── payload.go              # Estruturas Go (Structs) que representam a configuração do sistema clínico
 │   └── terraform/                  # Scripts e declarações do Terraform separadas por ambiente
-│       ├── aws/                    # Arquivos .tf para nuvem Amazon Web Services (S3, EC2)
-│       ├── azure/                  # Arquivos .tf para nuvem Microsoft Azure (Resource Group, Storage)
+│       ├── aws/                    # Arquivos .tf para nuvem Amazon Web Services (VPC, ALB, EC2, S3)
 │       └── local/                  # Arquivos .tf para ambiente de desenvolvimento local (Docker Provider)
 ├── test/
 │   └── obj_teste.json              # Modelo padrão de payload para testes locais de homologação
@@ -123,7 +120,7 @@ Quando a API recebe uma chamada no endpoint `/generate` ou `/generate-local`, as
    * **Imagens de Build:** Cria arquivos `Dockerfile` otimizados de múltiplos estágios (*multi-stage build*) para compilação estática do Next.js e compilação binária do Go.
 6. **Orquestração da Infraestrutura:**
    * Mapeia os dados técnicos (dimensionamento de médicos e pacientes) para parâmetros de infraestrutura (por exemplo, definindo o tamanho da máquina EC2 na AWS: `t3.medium` para pequenas clínicas ou `m5.large` para clínicas de grande porte).
-   * Copia os arquivos `.tf` correspondentes ao provedor alvo (`local`, `aws` ou `azure`).
+   * Copia os arquivos `.tf` correspondentes ao provedor alvo (`local` ou `aws`).
    * Gera o arquivo `terraform.tfvars.json` com todas as variáveis necessárias.
    * Executa os processos do Terraform sequencialmente no diretório do workspace (`terraform init` e `terraform apply -auto-approve`).
 7. **Retorno da Operação:**
@@ -196,12 +193,10 @@ No desenvolvimento local, o Terraform interage com o Daemon do Docker local para
 * Build e inicialização do container do Back-end (Go) expondo a porta `8081`.
 
 #### 2. Nuvem (AWS Provider)
-* Provisiona um **Bucket S3** criptografado exclusivo para guardar documentos médicos digitais (prescrições com assinatura digital, arquivos carregados e exames) com políticas de controle de acesso restrito.
-* Provisiona instâncias virtuais EC2 baseadas na escala definida na engine.
-
-#### 3. Nuvem (Azure Provider)
-* Provisiona um **Grupo de Recursos (Resource Group)** para cada clínica.
-* Cria um **Storage Account** dedicado. A propriedade de redundância de dados muda conforme a contratação de Disaster Recovery (`dr_enabled`): se ativado, provisiona armazenamento geo-redundante (**GRS**); caso contrário, armazenamento localmente redundante (**LRS**).
+* Provisiona uma **VPC dedicada** com Subnets públicas em múltiplas Zonas de Disponibilidade (`us-east-1a` e `us-east-1b`).
+* Configura **Application Load Balancer (ALB)** com roteamento de tráfego, health check ativo (`/health`) e isolamento por Security Groups.
+* Provisiona uma instância computacional **EC2** executando os containers da clínica (MariaDB, Backend Go e Frontend Next.js) e watchdog FinOps de desligamento automático.
+* Provisiona um **Bucket S3** criptografado exclusivo para documentos médicos e exames da clínica.
 
 ---
 

@@ -8,140 +8,326 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/motor-clinicas/internal/config"
 	"github.com/motor-clinicas/internal/models"
 )
 
-// Run processes the payload and triggers Terraform
-func Run(payload *models.SystemPayload, cfg *config.Config) error {
-	env := payload.Technical.Environment
-	log.Printf("Iniciando engine para o ambiente: %s", env)
+var (
+	activeTimersLock sync.Mutex
+	activeTimers     = make(map[string]*time.Timer)
+)
 
-	// 1. Mapear o payload para as variáveis do Terraform
-	tfVars := mapPayloadToTFVars(payload)
+// DefaultAdminEmail é o fallback para o e-mail de administrador caso não definido via AUTHORIZED_ADMIN_EMAIL
+const DefaultAdminEmail = "admin@pohinc.com.br"
 
-	// 2. Criar diretório de trabalho persistente por clínica (para manter o terraform.tfstate local)
+// ExecutionResult consolida os dados retornados após o provisionamento
+type ExecutionResult struct {
+	Mode           string `json:"mode"`
+	ClinicID       string `json:"clinic_id"`
+	ClinicName     string `json:"clinic_name"`
+	ClinicURL      string `json:"clinic_url"`
+	HealthCheckURL string `json:"health_check_url"`
+	Message        string `json:"message"`
+}
+
+// Run processes the payload and triggers Terraform or simulation
+func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail string) (*ExecutionResult, error) {
+	env := strings.ToLower(payload.Technical.Environment)
+	if env != "aws" && env != "local" {
+		return nil, fmt.Errorf("ambiente '%s' não suportado. Provedores homologados pelo artigo CONIC: 'aws' e 'local'", env)
+	}
+
+	log.Printf("[Engine] Iniciando processamento para clínica '%s' (ID: %s, Solicitante: %s, Ambiente: %s)",
+		payload.Identity.ClinicName, payload.ID, requesterEmail, env)
+
+	// 1. Provisionamento liberado para AWS e Local
+	log.Printf("[Engine] 🚀 Provisionamento autorizado para o ambiente '%s' (Solicitante: %s)", env, requesterEmail)
+
+	// 2. Mapear o payload para as variáveis do Terraform
+	tfVars := mapPayloadToTFVars(payload, cfg)
+
+	// 3. Criar diretório de trabalho persistente por clínica (para manter o terraform.tfstate local)
 	workDir := filepath.Join(".", ".states", env, payload.ID)
 	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return fmt.Errorf("falha ao criar diretório de trabalho persistente: %v", err)
+		return nil, fmt.Errorf("falha ao criar diretório de trabalho persistente: %v", err)
 	}
-	// defer os.RemoveAll(workDir) // Desativado temporariamente para debugar o que é gerado localmente
+	updateStatus(workDir, "provisioning", "Executando cirurgia estática de código...", "", "", "")
 
-	// 3. FASE DE CODE GENERATION (Se local, clonar frontend)
-	if env == "local" {
-		log.Println("Clonando Frontend e injetando configurações...")
-		if err := prepareFrontend(workDir, payload); err != nil {
-			return fmt.Errorf("falha ao preparar frontend: %v", err)
-		}
-
-		log.Println("Clonando Backend e injetando configurações...")
-		if err := prepareBackend(workDir, payload); err != nil {
-			return fmt.Errorf("falha ao preparar backend: %v", err)
-		}
+	// 4. FASE DE CODE GENERATION (Cirurgia de Código & Injeção de Parâmetros)
+	log.Println("[Engine] Preparando Frontend e executando cirurgia de código...")
+	if err := prepareFrontend(workDir, payload); err != nil {
+		updateStatus(workDir, "failed", "Falha ao preparar frontend", err.Error(), "", "")
+		return nil, fmt.Errorf("falha ao preparar frontend: %v", err)
 	}
 
-	// 4. Copiar os arquivos base .tf para o diretório de trabalho
+	log.Println("[Engine] Preparando Backend e executando cirurgia de código...")
+	if err := prepareBackend(workDir, payload); err != nil {
+		updateStatus(workDir, "failed", "Falha ao preparar backend", err.Error(), "", "")
+		return nil, fmt.Errorf("falha ao preparar backend: %v", err)
+	}
+
+	// 5. Copiar os arquivos base .tf para o diretório de trabalho
 	sourceDir := filepath.Join("internal", "terraform", env)
 	if err := copyDir(sourceDir, workDir); err != nil {
-		return fmt.Errorf("falha ao copiar templates do terraform: %v", err)
+		updateStatus(workDir, "failed", "Falha ao copiar templates do terraform", err.Error(), "", "")
+		return nil, fmt.Errorf("falha ao copiar templates do terraform: %v", err)
 	}
 
-	// 5. Salvar as variáveis geradas no arquivo terraform.tfvars.json
+	// 5.1. Se o ambiente for AWS, empacotar os artefatos compilados no bundle da clínica
+	if env == "aws" {
+		if err := packageAWSBundle(workDir, payload); err != nil {
+			updateStatus(workDir, "failed", "Falha ao empacotar bundle da clínica para AWS", err.Error(), "", "")
+			return nil, fmt.Errorf("falha ao empacotar bundle: %v", err)
+		}
+	}
+
+	// 6. Salvar as variáveis geradas no arquivo terraform.tfvars.json
 	varsBytes, err := json.MarshalIndent(tfVars, "", "  ")
 	if err != nil {
-		return fmt.Errorf("falha ao encodar variáveis do terraform: %v", err)
+		return nil, fmt.Errorf("falha ao encodar variáveis do terraform: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(workDir, "terraform.tfvars.json"), varsBytes, 0644); err != nil {
-		return fmt.Errorf("falha ao salvar arquivo de variáveis: %v", err)
+		return nil, fmt.Errorf("falha ao salvar arquivo de variáveis: %v", err)
 	}
 
-	// 6. Configurar variáveis de ambiente do SO para a nuvem correspondente
+	// 7. Configurar variáveis de ambiente do SO para a nuvem correspondente
 	envVars := os.Environ()
 	if env == "aws" {
 		envVars = append(envVars,
 			"AWS_REGION="+cfg.AWSRegion,
 			"AWS_ACCESS_KEY_ID="+cfg.AWSAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY="+cfg.AWSSecretAccessKey,
-			"AWS_SESSION_TOKEN="+cfg.AWSSessionToken,
 		)
+		if cfg.AWSSessionToken != "" {
+			envVars = append(envVars, "AWS_SESSION_TOKEN="+cfg.AWSSessionToken)
+		}
 	}
 
-	// 7. Executar Terraform Init
-	log.Println("Executando terraform init...")
+	// 8. Executar Terraform Init
+	log.Println("[Engine] Executando terraform init...")
+	updateStatus(workDir, "provisioning", "Inicializando Terraform e providers...", "", "", "")
 	if err := runCmd(workDir, envVars, "terraform", "init"); err != nil {
-		return fmt.Errorf("falha no terraform init: %v", err)
+		updateStatus(workDir, "failed", "Falha no terraform init", err.Error(), "", "")
+		return nil, fmt.Errorf("falha no terraform init: %v", err)
 	}
 
-	// 8. Executar Terraform Apply
-	log.Println("Executando terraform apply...")
+	// 9. Executar Terraform Apply
+	log.Printf("[Engine] Executando terraform apply para %s no ambiente %s...", payload.Identity.ClinicName, env)
+	updateStatus(workDir, "provisioning", "Executando Terraform Apply (provisionando ALB, EC2, VPC, S3)...", "", "", "")
 	if err := runCmd(workDir, envVars, "terraform", "apply", "-auto-approve"); err != nil {
-		return fmt.Errorf("falha no terraform apply: %v", err)
+		log.Printf("[Engine] ⚠️ Falha no terraform apply (%v). Disparando rollback automático para não manter recursos órfãos na nuvem...", err)
+		if destroyErr := runCmd(workDir, envVars, "terraform", "destroy", "-auto-approve"); destroyErr != nil {
+			log.Printf("[Engine] ❌ Falha no rollback automático: %v", destroyErr)
+		} else {
+			log.Println("[Engine] 🛑 Rollback concluído com sucesso: todos os recursos foram destruídos na AWS.")
+		}
+		updateStatus(workDir, "failed", "Recursos desmontados automaticamente.", "Falha ao provisionar infraestrutura na nuvem.", "", "")
+		return nil, fmt.Errorf("falha no terraform apply: %v", err)
 	}
 
-	log.Printf("Infraestrutura para %s (%s) criada com sucesso no diretório %s!", payload.Identity.ClinicName, payload.ID, workDir)
+	// 10. Coletar Outputs do Terraform
+	clinicURL, healthURL := getTerraformOutputs(workDir, envVars, env)
+	updateStatus(workDir, "ready", "Infraestrutura ativa e operacional", "", clinicURL, healthURL)
+
+	// FinOps Watchdog: Agendar desligamento automático em 15 minutos para conter custos na AWS (< US$ 10)
+	if env == "aws" {
+		activeTimersLock.Lock()
+		if t, exists := activeTimers[payload.ID]; exists {
+			t.Stop()
+		}
+		activeTimers[payload.ID] = time.AfterFunc(15*time.Minute, func() {
+			log.Printf("[Engine] ⏰ TTL de 15 minutos atingido para a clínica %s na AWS! Destruindo recursos automaticamente para conter custos...", payload.ID)
+			if err := Destroy(payload.ID, "aws", cfg); err != nil {
+				log.Printf("[Engine] ⚠️ Erro durante destruição automática de 15m da clínica %s: %v", payload.ID, err)
+			} else {
+				log.Printf("[Engine] 🛑 Recursos da clínica %s destruídos com sucesso após expiração do TTL de 15m.", payload.ID)
+			}
+			activeTimersLock.Lock()
+			delete(activeTimers, payload.ID)
+			activeTimersLock.Unlock()
+		})
+		activeTimersLock.Unlock()
+		log.Printf("[Engine] ⏱️ FinOps Watchdog ativado: Clínica %s na AWS será destruída automaticamente em 15 minutos.", payload.ID)
+	}
+
+	log.Printf("[Engine] ✅ Infraestrutura para %s (%s) provisionada com sucesso!", payload.Identity.ClinicName, payload.ID)
+
+	return &ExecutionResult{
+		Mode:           env,
+		ClinicID:       payload.ID,
+		ClinicName:     payload.Identity.ClinicName,
+		ClinicURL:      clinicURL,
+		HealthCheckURL: healthURL,
+		Message:        "Infraestrutura provisionada com sucesso",
+	}, nil
+}
+
+func updateStatus(workDir, status, message, errorMsg, clinicURL, healthURL string) {
+	statusMap := map[string]interface{}{
+		"status":           status,
+		"message":          message,
+		"error":            errorMsg,
+		"clinic_url":       clinicURL,
+		"health_check_url": healthURL,
+	}
+
+	if status == "ready" && strings.Contains(filepath.ToSlash(workDir), "/aws/") {
+		statusMap["auto_destroy_minutes"] = 15
+		statusMap["expires_at"] = time.Now().Add(15 * time.Minute).Format(time.RFC3339)
+	}
+
+	data, _ := json.Marshal(statusMap)
+	_ = os.WriteFile(filepath.Join(workDir, "status.json"), data, 0644)
+}
+
+// Destroy desmonta 100% da infraestrutura provisionada no Terraform
+func Destroy(clinicID string, env string, cfg *config.Config) error {
+	activeTimersLock.Lock()
+	if t, exists := activeTimers[clinicID]; exists {
+		t.Stop()
+		delete(activeTimers, clinicID)
+	}
+	activeTimersLock.Unlock()
+
+	workDir := filepath.Join(".", ".states", env, clinicID)
+	if _, err := os.Stat(workDir); os.IsNotExist(err) {
+		return fmt.Errorf("diretório de estado não encontrado para clínica %s no ambiente %s", clinicID, env)
+	}
+
+	log.Printf("[Engine] 🛑 Executando terraform destroy para a clínica %s no ambiente %s...", clinicID, env)
+
+	envVars := os.Environ()
+	if env == "aws" {
+		envVars = append(envVars,
+			"AWS_REGION="+cfg.AWSRegion,
+			"AWS_ACCESS_KEY_ID="+cfg.AWSAccessKeyID,
+			"AWS_SECRET_ACCESS_KEY="+cfg.AWSSecretAccessKey,
+		)
+		if cfg.AWSSessionToken != "" {
+			envVars = append(envVars, "AWS_SESSION_TOKEN="+cfg.AWSSessionToken)
+		}
+	}
+
+	if err := runCmd(workDir, envVars, "terraform", "destroy", "-auto-approve"); err != nil {
+		return fmt.Errorf("falha no terraform destroy: %v", err)
+	}
+
+	updateStatus(workDir, "destroyed", "Infraestrutura desprovisionada com sucesso", "", "", "")
+	log.Printf("[Engine] 🗑️ Infraestrutura da clínica %s destruída com sucesso!", clinicID)
 	return nil
 }
 
-// prepareFrontend clona o webproject e adiciona Dockerfile e configs
+func isAuthorizedAdmin(email string) bool {
+	expected := os.Getenv("AUTHORIZED_ADMIN_EMAIL")
+	if expected == "" {
+		expected = DefaultAdminEmail
+	}
+	return strings.EqualFold(strings.TrimSpace(email), expected)
+}
+
+func sanitizeName(name string) string {
+	lower := strings.ToLower(name)
+	var sb strings.Builder
+	for _, r := range lower {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			sb.WriteRune(r)
+		} else {
+			sb.WriteRune('-')
+		}
+	}
+	res := strings.Trim(sb.String(), "-")
+	if res == "" {
+		return "clinica"
+	}
+	return res
+}
+
+func getTerraformOutputs(workDir string, envVars []string, env string) (string, string) {
+	cmd := exec.Command("terraform", "output", "-json")
+	cmd.Dir = workDir
+	cmd.Env = envVars
+	out, err := cmd.Output()
+	if err != nil {
+		if env == "local" {
+			return "http://localhost:3001", "http://localhost:8081/health"
+		}
+		return "http://localhost", "http://localhost/health"
+	}
+
+	var parsed map[string]struct {
+		Value interface{} `json:"value"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil {
+		if env == "local" {
+			return "http://localhost:3001", "http://localhost:8081/health"
+		}
+		return "http://localhost", "http://localhost/health"
+	}
+
+	clinicURL := "http://localhost:3001"
+	if u, ok := parsed["clinic_url"].Value.(string); ok && u != "" {
+		clinicURL = u
+	} else if u, ok := parsed["frontend_url"].Value.(string); ok && u != "" {
+		clinicURL = u
+	}
+
+	healthURL := "http://localhost:8081/health"
+	if h, ok := parsed["api_health_check_url"].Value.(string); ok && h != "" {
+		healthURL = h
+	}
+
+	return clinicURL, healthURL
+}
+
 func prepareFrontend(workDir string, payload *models.SystemPayload) error {
 	frontTarget := filepath.Join(workDir, "frontend")
-	
-	// A origem agora é o template autossuficiente mantido no motor
 	frontSource := filepath.Join("internal", "clinic_template")
-	
-	// Verifica se a pasta de origem existe
+
 	if _, err := os.Stat(frontSource); os.IsNotExist(err) {
 		return fmt.Errorf("pasta do template base não encontrada em %s", frontSource)
 	}
 
-	// Limpar diretório alvo se já existir (evita lixo de execuções anteriores)
 	os.RemoveAll(frontTarget)
 
-	// 1. Copiar a pasta inteira
 	if err := copyDirRecursive(frontSource, frontTarget); err != nil {
 		return fmt.Errorf("erro copiando pasta do frontend: %v", err)
 	}
 
-	// 2. Cirurgia de Código: Excluir código que o cliente não ativou
 	if err := performCodeSurgery(frontTarget, payload); err != nil {
 		return fmt.Errorf("erro durante a cirurgia de código: %v", err)
 	}
 
-	// 3. Injetar o clinic.config.json na pasta public para o frontend conseguir acessar via fetch
-	// Adicionamos a URL do backend dinamicamente
 	configMap := make(map[string]interface{})
 	payloadBytes, _ := json.Marshal(payload)
 	json.Unmarshal(payloadBytes, &configMap)
-	
-	backendUrl := "http://localhost:8081" // Padrão local
+
+	backendUrl := "http://localhost:8081"
 	if payload.Technical.Environment != "local" {
-		// Em produção/nuvem, isso viria de uma variável de ambiente ou output do Terraform
-		backendUrl = "https://api-" + payload.ID + ".clinica.com" 
+		backendUrl = "/api"
 	}
 	configMap["backendUrl"] = backendUrl
 
 	configBytes, _ := json.MarshalIndent(configMap, "", "  ")
+	_ = os.MkdirAll(filepath.Join(frontTarget, "public"), 0755)
 	if err := os.WriteFile(filepath.Join(frontTarget, "public", "clinic.config.json"), configBytes, 0644); err != nil {
 		return fmt.Errorf("erro escrevendo clinic.config.json: %v", err)
 	}
 
-	// 3. Criar Dockerfile
 	dockerfileContent := `FROM node:20-slim AS base
-
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-# Usa npm install no lugar de npm ci para maior flexibilidade
 RUN npm install --legacy-peer-deps
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Realiza o build do Next.js
 ENV NEXT_TELEMETRY_DISABLED 1
-# Disable ESLint and TS errors during build just in case there are case-sensitive issues on linux
 ENV NEXT_PUBLIC_IGNORE_ESLINT=1
 ENV IGNORE_ESLINT=true
 ENV IGNORE_TS=true
@@ -151,12 +337,10 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
-
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
-
 EXPOSE 3000
 CMD ["npm", "run", "start"]
 `
@@ -167,7 +351,6 @@ CMD ["npm", "run", "start"]
 	return nil
 }
 
-// prepareBackend clona o template do back-end e realiza a injeção modular
 func prepareBackend(workDir string, payload *models.SystemPayload) error {
 	backTarget := filepath.Join(workDir, "backend")
 	backSource := filepath.Join("internal", "clinic_template", "back-end")
@@ -182,12 +365,10 @@ func prepareBackend(workDir string, payload *models.SystemPayload) error {
 		return fmt.Errorf("erro copiando pasta do back-end: %v", err)
 	}
 
-	// 2. Cirurgia de Código no Back-end
 	if err := backendCodeSurgery(backTarget, payload); err != nil {
 		return fmt.Errorf("erro durante a cirurgia de código no back-end: %v", err)
 	}
 
-	// 3. Criar .env para o Back-end
 	envContent := fmt.Sprintf(`DB_USER=clinic_user
 DB_PASSWORD=clinic_pass
 DB_HOST=mariadb_%s
@@ -204,75 +385,70 @@ PORT=8080
 	return nil
 }
 
-// backendCodeSurgery remove models e rotas não utilizados
 func backendCodeSurgery(backTarget string, payload *models.SystemPayload) error {
-	log.Println("Realizando Cirurgia de Código no Back-end...")
+	log.Println("[Engine] Realizando Cirurgia de Código no Back-end...")
 
 	if !payload.Modules.Assistant.Enabled {
 		log.Println("- Removendo modelos de Assistant")
-		os.Remove(filepath.Join(backTarget, "internal", "models", "assistant.go"))
+		_ = os.Remove(filepath.Join(backTarget, "internal", "models", "assistant.go"))
 	}
 
 	if !payload.Modules.Doctor.Enabled {
 		log.Println("- Removendo modelos de Doctor")
-		os.Remove(filepath.Join(backTarget, "internal", "models", "doctor.go"))
+		_ = os.Remove(filepath.Join(backTarget, "internal", "models", "doctor.go"))
 	}
-
-	// Aqui poderíamos injetar as chamadas de AutoMigrate dinamicamente no main.go
-	// Por enquanto, apenas removemos os arquivos físicos.
 
 	return nil
 }
 
 func performCodeSurgery(frontTarget string, payload *models.SystemPayload) error {
-	log.Println("Realizando Cirurgia de Código no Frontend...")
+	log.Println("[Engine] Realizando Cirurgia de Código no Frontend...")
 
 	if !payload.Modules.Assistant.Enabled {
 		log.Println("- Removendo rotas do módulo Assistant")
-		os.RemoveAll(filepath.Join(frontTarget, "app", "assistant"))
+		_ = os.RemoveAll(filepath.Join(frontTarget, "app", "assistant"))
 	}
 
 	if !payload.Modules.Doctor.Enabled {
 		log.Println("- Removendo rotas do módulo Doctor")
-		os.RemoveAll(filepath.Join(frontTarget, "app", "doctor"))
+		_ = os.RemoveAll(filepath.Join(frontTarget, "app", "doctor"))
 	}
 
 	if !payload.Modules.Management.Enabled {
 		log.Println("- Removendo rotas do módulo Management")
-		os.RemoveAll(filepath.Join(frontTarget, "app", "management"))
+		_ = os.RemoveAll(filepath.Join(frontTarget, "app", "management"))
 	}
 
 	return nil
 }
 
-func mapPayloadToTFVars(p *models.SystemPayload) map[string]interface{} {
-	instanceType := "t3.medium"
-	if p.Technical.Sizing.AvgDoctors > 5 {
-		instanceType = "m5.large"
-	}
+func mapPayloadToTFVars(p *models.SystemPayload, cfg *config.Config) map[string]interface{} {
+	// Padrão t3.micro para máxima economia na AWS (< 10 dólares)
+	instanceType := "t3.micro"
 	if p.Technical.Environment == "local" {
 		instanceType = "local-docker"
 	}
 
 	return map[string]interface{}{
-		"clinic_id":       p.ID,
-		"clinic_name":     p.Identity.ClinicName,
-		"environment":     p.Technical.Environment,
-		"instance_type":   instanceType,
-		"dr_enabled":      p.Technical.HasDisasterRecovery,
-		"module_doctor":   p.Modules.Doctor.Enabled,
-		"module_billing":  p.Modules.Management.Features.BillingControl,
+		"clinic_id":         p.ID,
+		"clinic_name":       p.Identity.ClinicName,
+		"environment":       p.Technical.Environment,
+		"instance_type":     instanceType,
+		"aws_region":        cfg.AWSRegion,
+		"aws_access_key":    cfg.AWSAccessKeyID,
+		"aws_secret_key":    cfg.AWSSecretAccessKey,
+		"aws_session_token": cfg.AWSSessionToken,
+		"dr_enabled":        p.Technical.HasDisasterRecovery,
+		"module_doctor":     p.Modules.Doctor.Enabled,
+		"module_billing":    p.Modules.Management.Features.BillingControl,
 	}
 }
 
-// copyDir Recursive para clonar o frontend
 func copyDirRecursive(src string, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
-		// Ignorar .git, node_modules e .next para otimizar
 		if info.IsDir() && (info.Name() == ".git" || info.Name() == "node_modules" || info.Name() == ".next") {
 			return filepath.SkipDir
 		}
@@ -291,7 +467,6 @@ func copyDirRecursive(src string, dst string) error {
 	})
 }
 
-// copyDir plano para templates
 func copyDir(src string, dst string) error {
 	entries, err := os.ReadDir(src)
 	if err != nil {

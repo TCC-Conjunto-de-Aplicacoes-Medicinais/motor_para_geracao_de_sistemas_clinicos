@@ -26,6 +26,7 @@ const PALETTES: Record<string, { primary: string; accent: string }> = {
   emerald: { primary: '#064E3B', accent: '#10B981' },
   purple: { primary: '#4C1D95', accent: '#8B5CF6' },
   rose: { primary: '#881337', accent: '#F43F5E' },
+  red: { primary: '#C62828', accent: '#F44336' },
 };
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {

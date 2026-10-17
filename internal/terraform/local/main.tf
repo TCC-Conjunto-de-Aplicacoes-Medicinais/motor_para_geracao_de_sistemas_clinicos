@@ -93,7 +93,7 @@ resource "docker_container" "frontend" {
   
   ports {
     internal = 3000
-    external = 3000
+    external = 3001
   }
 
   networks_advanced {
@@ -122,7 +122,9 @@ resource "docker_container" "backend" {
     "DB_HOST=mariadb",
     "DB_PORT=3306",
     "DB_NAME=clinic_${var.clinic_id}",
-    "CLINIC_NAME=${var.clinic_name}"
+    "CLINIC_NAME=${var.clinic_name}",
+    "CLINIC_ID=${var.clinic_id}",
+    "CENTRAL_BUS_URL=http://localhost:8002/api/exams"
   ]
 
   ports {
@@ -138,7 +140,7 @@ resource "docker_container" "backend" {
 }
 
 output "frontend_url" {
-  value = "http://localhost:3000"
+  value = "http://localhost:3001"
 }
 output "backend_url" {
   value = "http://localhost:8081"
