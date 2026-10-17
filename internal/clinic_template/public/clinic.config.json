@@ -1,13 +1,13 @@
 {
   "backendUrl": "http://localhost:8081",
-  "createdAt": "2026-04-29T01:08:53.605Z",
-  "id": "8e5080b7-b72d-476d-85ce-6abbee6e99ee",
+  "createdAt": "2026-10-17T22:29:31.402Z",
+  "id": "bd741d4b-b8ed-43c7-b2d8-e65b1c8bf180",
   "identity": {
-    "clinicName": "Clinica Teste Local",
+    "clinicName": "Teste total!",
     "logoFile": null,
     "logoFileName": null,
     "logoType": "generic",
-    "palette": "green"
+    "palette": "blue"
   },
   "implementation": {
     "address": "",
@@ -19,7 +19,7 @@
       "features": {
         "billing": true,
         "billingCheckControl": true,
-        "checkInOut": true,
+        "checkInOut": false,
         "doctorScheduleView": true,
         "insurancePlans": true,
         "patientManagement": true,
@@ -70,15 +70,15 @@
     "environment": "local",
     "estimatedPrice": {
       "currency": "BRL",
-      "monthly": 1845,
-      "setup": 1490
+      "monthly": 4034,
+      "setup": 3090
     },
     "hasDisasterRecovery": false,
     "sizing": {
-      "avgAssistants": 2,
-      "avgDoctors": 8,
-      "maxPatients": 560,
-      "minPatients": 230
+      "avgAssistants": 7,
+      "avgDoctors": 20,
+      "maxPatients": 1450,
+      "minPatients": 710
     }
   },
   "version": "1.0.0"

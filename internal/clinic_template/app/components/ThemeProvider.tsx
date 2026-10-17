@@ -8,6 +8,7 @@ interface ThemeContextType {
   clinicName: string;
   systemCost: number;
   backendUrl: string;
+  config: any;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -15,7 +16,8 @@ const ThemeContext = createContext<ThemeContextType>({
   toggleTheme: () => {},
   clinicName: 'Minha Clínica',
   systemCost: 0,
-  backendUrl: ''
+  backendUrl: '',
+  config: null
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -35,17 +37,18 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const [clinicName, setClinicName] = useState('Clínica');
   const [backendUrl, setBackendUrl] = useState('');
   const [systemCost, setSystemCost] = useState(0);
+  const [config, setConfig] = useState<any>(null);
 
   useEffect(() => {
     fetch('/clinic.config.json')
       .then((res) => res.json())
-      .then((config) => {
-        const paletteName = config?.identity?.palette || 'blue';
+      .then((cfg) => {
+        setConfig(cfg);
+        const paletteName = cfg?.identity?.palette || 'blue';
         const colors = PALETTES[paletteName] || PALETTES['blue'];
-        if(config?.identity?.clinicName) setClinicName(config.identity.clinicName);
-        if(config?.technical?.estimatedPrice?.monthly) setSystemCost(config.technical.estimatedPrice.monthly);
-        if(config?.backendUrl) setBackendUrl(config.backendUrl);
-
+        if(cfg?.identity?.clinicName) setClinicName(cfg.identity.clinicName);
+        if(cfg?.technical?.estimatedPrice?.monthly) setSystemCost(cfg.technical.estimatedPrice.monthly);
+        if(cfg?.backendUrl) setBackendUrl(cfg.backendUrl);
 
         document.documentElement.style.setProperty('--color-primary', colors.primary);
         document.documentElement.style.setProperty('--color-accent', colors.accent);
@@ -73,7 +76,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, clinicName, systemCost, backendUrl }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, clinicName, systemCost, backendUrl, config }}>
       {children}
     </ThemeContext.Provider>
   );

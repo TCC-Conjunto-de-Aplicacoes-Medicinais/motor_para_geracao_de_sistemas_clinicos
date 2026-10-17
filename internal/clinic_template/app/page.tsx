@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { clinicName, backendUrl } = useTheme();
+  const { clinicName, backendUrl, config } = useTheme();
 
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -208,65 +208,81 @@ export default function LoginPage() {
               {loading ? 'Validando...' : <>Acessar Sistema <ArrowRight size={18} /></>}
             </button>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-              <button 
-                type="button"
-                onClick={() => quickLogin('medico@gmail.com', 'medico123')}
-                style={{
-                  padding: '0.8rem 0.5rem',
-                  borderRadius: '12px',
-                  border: '1px solid var(--border-color)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                Médico
-              </button>
-              <button 
-                type="button"
-                onClick={() => quickLogin('assistente@gmail.com', 'assistente123')}
-                style={{
-                  padding: '0.8rem 0.5rem',
-                  borderRadius: '12px',
-                  border: '1px solid var(--border-color)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                Assistente
-              </button>
-              <button 
-                type="button"
-                onClick={() => quickLogin('gerente@gmail.com', 'gerente123')}
-                style={{
-                  padding: '0.8rem 0.5rem',
-                  borderRadius: '12px',
-                  border: '1px solid var(--border-color)',
-                  background: 'transparent',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.2s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                Gerente
-              </button>
-            </div>
+            {(() => {
+              const isDoctorEnabled = config?.modules?.doctor?.enabled !== false;
+              const isAssistantEnabled = config?.modules?.assistant?.enabled === true;
+              const isManagementEnabled = config?.modules?.management?.enabled === true;
+              const activeCount = [isDoctorEnabled, isAssistantEnabled, isManagementEnabled].filter(Boolean).length;
+              if (activeCount === 0) return null;
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${activeCount}, 1fr)`, gap: '0.75rem' }}>
+                  {isDoctorEnabled && (
+                    <button 
+                      type="button"
+                      onClick={() => quickLogin('medico@gmail.com', 'medico123')}
+                      style={{
+                        padding: '0.8rem 0.5rem',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-color)',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s ease'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      Médico
+                    </button>
+                  )}
+                  {isAssistantEnabled && (
+                    <button 
+                      type="button"
+                      onClick={() => quickLogin('assistente@gmail.com', 'assistente123')}
+                      style={{
+                        padding: '0.8rem 0.5rem',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-color)',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s ease'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      Assistente
+                    </button>
+                  )}
+                  {isManagementEnabled && (
+                    <button 
+                      type="button"
+                      onClick={() => quickLogin('gerente@gmail.com', 'gerente123')}
+                      style={{
+                        padding: '0.8rem 0.5rem',
+                        borderRadius: '12px',
+                        border: '1px solid var(--border-color)',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'background 0.2s ease'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      Gerente
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
 
           </div>
         </form>

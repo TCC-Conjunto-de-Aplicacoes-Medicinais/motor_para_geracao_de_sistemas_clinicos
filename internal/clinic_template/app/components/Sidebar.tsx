@@ -4,17 +4,36 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, CalendarDays, History, Settings, LogOut } from 'lucide-react';
+import { useTheme } from './ThemeProvider';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { config } = useTheme();
+
+  const doctorFeatures = config?.modules?.doctor?.features;
 
   const menuItems = [
-    { name: 'Dashboard', path: '/doctor', icon: LayoutDashboard },
-    { name: 'Pacientes', path: '/doctor/patients', icon: Users },
-    { name: 'Agenda', path: '/doctor/schedule', icon: CalendarDays },
-    { name: 'Histórico', path: '/doctor/history', icon: History },
-    { name: 'Configurações', path: '/doctor/config', icon: Settings },
-  ];
+    { name: 'Dashboard', path: '/doctor', icon: LayoutDashboard, show: true },
+    { 
+      name: 'Pacientes', 
+      path: '/doctor/patients', 
+      icon: Users, 
+      show: doctorFeatures ? doctorFeatures.patientList !== false : true 
+    },
+    { 
+      name: 'Agenda', 
+      path: '/doctor/schedule', 
+      icon: CalendarDays, 
+      show: doctorFeatures ? doctorFeatures.schedule !== false : true 
+    },
+    { 
+      name: 'Histórico', 
+      path: '/doctor/history', 
+      icon: History, 
+      show: doctorFeatures ? doctorFeatures.consultationHistory !== false : true 
+    },
+    { name: 'Configurações', path: '/doctor/config', icon: Settings, show: true },
+  ].filter(item => item.show);
 
   return (
     <aside style={{

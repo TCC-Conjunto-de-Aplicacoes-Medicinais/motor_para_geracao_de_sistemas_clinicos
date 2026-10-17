@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import StatCard from '../components/StatCard';
 
 const MOCK_APPOINTMENTS = [
@@ -16,12 +16,29 @@ const MOCK_REMINDERS = [
 ];
 
 export default function DoctorDashboard() {
+  const [doctorName, setDoctorName] = useState('Dr. Silva');
   const [reminders, setReminders] = useState([
     { id: 1, text: 'Revisar exames laboratoriais de Carlos', done: true },
     { id: 2, text: 'Ligar para a farmácia central', done: false },
     { id: 3, text: 'Atualizar prontuário Maria S.', done: false },
   ]);
   const [newReminder, setNewReminder] = useState('');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('clinic_doctor_profile');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.name) setDoctorName(parsed.name);
+      } else {
+        const userStored = localStorage.getItem('clinic_user');
+        if (userStored) {
+          const user = JSON.parse(userStored);
+          if (user.name) setDoctorName(user.name);
+        }
+      }
+    } catch {}
+  }, []);
 
   const toggleReminder = (id: number) => {
     setReminders(reminders.map(r => r.id === id ? { ...r, done: !r.done } : r));
@@ -47,7 +64,7 @@ export default function DoctorDashboard() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <h1 className="text-gradient" style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-            Olá, Dr(a). Silva! 👋
+            Olá, {doctorName}! 👋
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
             Hoje é <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{currentDate}</span>.

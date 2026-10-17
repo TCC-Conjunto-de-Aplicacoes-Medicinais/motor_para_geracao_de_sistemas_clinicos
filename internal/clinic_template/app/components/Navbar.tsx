@@ -6,6 +6,33 @@ import { Moon, Sun, User, Bell } from 'lucide-react';
 
 export default function Navbar() {
   const { theme, toggleTheme, clinicName } = useTheme();
+  const [userName, setUserName] = React.useState('Dr. Silva');
+  const [userRole, setUserRole] = React.useState('Cardiologia');
+
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem('clinic_doctor_profile');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.name) setUserName(parsed.name);
+        if (parsed.specialty) setUserRole(parsed.specialty);
+      } else {
+        const userStored = localStorage.getItem('clinic_user');
+        if (userStored) {
+          const user = JSON.parse(userStored);
+          if (user.name) setUserName(user.name);
+          if (user.role) setUserRole(user.role === 'doctor' ? 'Médico' : user.role === 'assistant' ? 'Assistente' : 'Gestão');
+        }
+      }
+    } catch {}
+  }, []);
+
+  const initials = userName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(n => n[0].toUpperCase())
+    .join('');
 
   return (
     <header style={{
@@ -55,8 +82,8 @@ export default function Navbar() {
           borderLeft: '1px solid var(--border-color)'
         }}>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>Dr. Silva</p>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Cardiologia</span>
+            <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>{userName}</p>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{userRole}</span>
           </div>
           <div style={{
             width: '40px',
@@ -67,11 +94,11 @@ export default function Navbar() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.1rem',
+            fontSize: '1rem',
             fontWeight: 'bold',
             boxShadow: 'var(--shadow-sm)'
           }}>
-            DS
+            {initials || 'CL'}
           </div>
         </div>
       </div>
