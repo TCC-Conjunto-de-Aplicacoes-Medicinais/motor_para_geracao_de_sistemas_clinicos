@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -133,25 +134,33 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 	clinicURL, healthURL := getTerraformOutputs(workDir, envVars, env)
 	updateStatus(workDir, "ready", "Infraestrutura ativa e operacional", "", clinicURL, healthURL)
 
-	// FinOps Watchdog: Agendar desligamento automático em 15 minutos para conter custos na AWS (< US$ 10)
+	// FinOps Watchdog: Agendar desligamento automático em 5 minutos para conter custos na AWS (< US$ 10)
 	if env == "aws" {
+		destroyMinutes := 5
+		if envMin := os.Getenv("AUTO_DESTROY_MINUTES"); envMin != "" {
+			if m, err := strconv.Atoi(envMin); err == nil && m > 0 {
+				destroyMinutes = m
+			}
+		}
+		ttl := time.Duration(destroyMinutes) * time.Minute
+
 		activeTimersLock.Lock()
 		if t, exists := activeTimers[payload.ID]; exists {
 			t.Stop()
 		}
-		activeTimers[payload.ID] = time.AfterFunc(15*time.Minute, func() {
-			log.Printf("[Engine] ⏰ TTL de 15 minutos atingido para a clínica %s na AWS! Destruindo recursos automaticamente para conter custos...", payload.ID)
+		activeTimers[payload.ID] = time.AfterFunc(ttl, func() {
+			log.Printf("[Engine] ⏰ TTL de %d minutos atingido para a clínica %s na AWS! Destruindo recursos automaticamente para conter custos...", destroyMinutes, payload.ID)
 			if err := Destroy(payload.ID, "aws", cfg); err != nil {
-				log.Printf("[Engine] ⚠️ Erro durante destruição automática de 15m da clínica %s: %v", payload.ID, err)
+				log.Printf("[Engine] ⚠️ Erro durante destruição automática de %dm da clínica %s: %v", destroyMinutes, payload.ID, err)
 			} else {
-				log.Printf("[Engine] 🛑 Recursos da clínica %s destruídos com sucesso após expiração do TTL de 15m.", payload.ID)
+				log.Printf("[Engine] 🛑 Recursos da clínica %s destruídos com sucesso após expiração do TTL de %dm.", payload.ID, destroyMinutes)
 			}
 			activeTimersLock.Lock()
 			delete(activeTimers, payload.ID)
 			activeTimersLock.Unlock()
 		})
 		activeTimersLock.Unlock()
-		log.Printf("[Engine] ⏱️ FinOps Watchdog ativado: Clínica %s na AWS será destruída automaticamente em 15 minutos.", payload.ID)
+		log.Printf("[Engine] ⏱️ FinOps Watchdog ativado: Clínica %s na AWS será destruída automaticamente em %d minutos.", payload.ID, destroyMinutes)
 	}
 
 	log.Printf("[Engine] ✅ Infraestrutura para %s (%s) provisionada com sucesso!", payload.Identity.ClinicName, payload.ID)
@@ -176,8 +185,14 @@ func updateStatus(workDir, status, message, errorMsg, clinicURL, healthURL strin
 	}
 
 	if status == "ready" && strings.Contains(filepath.ToSlash(workDir), "/aws/") {
-		statusMap["auto_destroy_minutes"] = 15
-		statusMap["expires_at"] = time.Now().Add(15 * time.Minute).Format(time.RFC3339)
+		destroyMinutes := 5
+		if envMin := os.Getenv("AUTO_DESTROY_MINUTES"); envMin != "" {
+			if m, err := strconv.Atoi(envMin); err == nil && m > 0 {
+				destroyMinutes = m
+			}
+		}
+		statusMap["auto_destroy_minutes"] = destroyMinutes
+		statusMap["expires_at"] = time.Now().Add(time.Duration(destroyMinutes) * time.Minute).Format(time.RFC3339)
 	}
 
 	data, _ := json.Marshal(statusMap)
