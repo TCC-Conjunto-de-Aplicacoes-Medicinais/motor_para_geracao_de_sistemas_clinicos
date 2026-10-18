@@ -86,8 +86,126 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     generalNotes: 'Paciente esteve sob atendimento médico nesta clínica ambulatorial.',
   });
 
-  // 1. Carregar Dados Persistidos do Prontuário e do Médico
+  // Interface e Base de Dados de Pacientes
+  interface PatientData {
+    id: string;
+    name: string;
+    age: number | string;
+    gender: string;
+    cpf: string;
+    phone: string;
+    email: string;
+    insurance: string;
+    specialty: string;
+    status: string;
+    lastVisit: string;
+  }
+
+  const DEFAULT_PATIENTS: Record<string, PatientData> = {
+    '1': {
+      id: '1',
+      name: 'Maria Santos',
+      age: 45,
+      gender: 'Feminino',
+      cpf: '123.456.789-00',
+      phone: '(11) 99123-4567',
+      email: 'maria.santos@email.com',
+      insurance: 'Unimed Paulistana',
+      specialty: 'Cardiologia',
+      status: 'Ativo',
+      lastVisit: '10/04/2026'
+    },
+    '2': {
+      id: '2',
+      name: 'Carlos Eduardo Oliveira',
+      age: 52,
+      gender: 'Masculino',
+      cpf: '234.567.890-11',
+      phone: '(11) 98765-4321',
+      email: 'carlos.eduardo@email.com',
+      insurance: 'Bradesco Saúde',
+      specialty: 'Cardiologia',
+      status: 'Em Tratamento',
+      lastVisit: '08/04/2026'
+    },
+    '3': {
+      id: '3',
+      name: 'Ana Beatriz Lima',
+      age: 29,
+      gender: 'Feminino',
+      cpf: '345.678.901-22',
+      phone: '(11) 97654-3210',
+      email: 'ana.lima@email.com',
+      insurance: 'SulAmérica',
+      specialty: 'Clínica Geral',
+      status: 'Alta',
+      lastVisit: '12/03/2026'
+    },
+    '4': {
+      id: '4',
+      name: 'Roberto Ferreira Costa',
+      age: 61,
+      gender: 'Masculino',
+      cpf: '456.789.012-33',
+      phone: '(11) 96543-2109',
+      email: 'roberto.costa@email.com',
+      insurance: 'Amil',
+      specialty: 'Cardiologia',
+      status: 'Ativo',
+      lastVisit: '01/05/2026'
+    }
+  };
+
+  const [patientData, setPatientData] = useState<PatientData>(DEFAULT_PATIENTS['1']);
+
+  // 1. Carregar Dados Persistidos do Prontuário, Médico e Paciente Específico
   useEffect(() => {
+    const patientId = String(params?.id || '1');
+
+    // Identificar dados do paciente (localStorage ou dicionário)
+    let loadedPatient: PatientData = DEFAULT_PATIENTS[patientId] || {
+      id: patientId,
+      name: `Paciente #${patientId}`,
+      age: 38,
+      gender: 'Não informado',
+      cpf: '123.456.789-99',
+      phone: '(11) 99123-4567',
+      email: 'paciente@email.com',
+      insurance: 'Unimed Paulistana',
+      specialty: 'Cardiologia',
+      status: 'Ativo',
+      lastVisit: 'Hoje'
+    };
+
+    try {
+      const savedList = localStorage.getItem('clinic_patients_list');
+      if (savedList) {
+        const parsedList = JSON.parse(savedList);
+        if (Array.isArray(parsedList)) {
+          const found = parsedList.find((p: any) => String(p.id) === patientId);
+          if (found) {
+            loadedPatient = {
+              id: String(found.id),
+              name: found.name || loadedPatient.name,
+              age: found.age || loadedPatient.age,
+              gender: found.gender || (found.name?.toLowerCase().endsWith('a') ? 'Feminino' : 'Masculino'),
+              cpf: found.cpf || loadedPatient.cpf,
+              phone: found.phone || loadedPatient.phone,
+              email: found.email || (found.name ? `${found.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com` : loadedPatient.email),
+              insurance: found.insurance || loadedPatient.insurance,
+              specialty: found.specialty || loadedPatient.specialty,
+              status: found.status || loadedPatient.status,
+              lastVisit: found.lastVisit || loadedPatient.lastVisit,
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao ler clinic_patients_list no prontuário:', e);
+    }
+
+    setPatientData(loadedPatient);
+
     // Carregar perfil do médico atualizado
     const savedDoc = localStorage.getItem('clinic_doctor_profile');
     if (savedDoc) {
@@ -101,7 +219,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     }
 
     // Carregar prontuário do paciente específico
-    const patientStorageKey = `clinic_patient_${params?.id || '1'}_records`;
+    const patientStorageKey = `clinic_patient_${patientId}_records`;
     const savedRecords = localStorage.getItem(patientStorageKey);
 
     if (savedRecords) {
@@ -121,23 +239,79 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       }
     }
 
-    // Dados iniciais padrão de demonstração clínica
-    const defaultNotes = [
+    // Dados iniciais dinâmicos por paciente (para evitar dados genéricos ou duplicados)
+    let defaultNotes = [
       { date: '10/04/2026', text: 'Paciente relatou melhora com medicação atual. Manter acompanhamento mensal.' },
       { date: '15/03/2026', text: 'Solicitado ECG de urgência — dor torácica recorrente nas últimas 2 semanas.' }
     ];
-    const defaultMeds = [
+    let defaultMeds = [
       { name: 'Losartana 50mg', freq: '1x/dia', since: 'Jan/2026' },
       { name: 'Atenolol 25mg', freq: '2x/dia', since: 'Mar/2025' }
     ];
-    const defaultFiles = [
+    let defaultFiles = [
       { id: 'f1', name: 'Hemograma_2026.pdf', date: '10/04/2026', size: '245 KB', type: 'pdf' },
       { id: 'f2', name: 'ECG_marco.pdf', date: '15/03/2026', size: '1.2 MB', type: 'pdf' }
     ];
-    const defaultPrescriptions = [
-      { type: 'Laudo Cardiológico', date: '10/04/2026', status: 'Emitido', signed: true, print: false },
+    let defaultPrescriptions = [
+      { type: 'Laudo Cardiológico', date: '10/04/2026', status: 'Laudado', signed: true, print: false },
       { type: 'Receituário', date: '15/03/2026', status: 'Emitido', signed: true, print: true }
     ];
+
+    if (patientId === '2') {
+      defaultNotes = [
+        { date: '08/04/2026', text: 'Retorno pós-angioplastia coronária. Relata boa tolerância aos exercícios leves. PA: 125x82 mmHg.' },
+        { date: '10/02/2026', text: 'Solicitado ecocardiograma transtorácico e perfil lipídico de controle.' }
+      ];
+      defaultMeds = [
+        { name: 'Carvedilol 12.5mg', freq: '2x/dia', since: 'Fev/2026' },
+        { name: 'Atorvastatina 40mg', freq: '1x/noite', since: 'Jan/2026' },
+        { name: 'AAS 100mg', freq: '1x/dia', since: 'Jan/2026' }
+      ];
+      defaultFiles = [
+        { id: 'f1', name: 'Ecocardiograma_Transtoracico.pdf', date: '08/04/2026', size: '512 KB', type: 'pdf' },
+        { id: 'f2', name: 'Perfil_Lipidico.pdf', date: '10/02/2026', size: '180 KB', type: 'pdf' }
+      ];
+      defaultPrescriptions = [
+        { type: 'Receituário Especial', date: '08/04/2026', status: 'Emitido', signed: true, print: true }
+      ];
+    } else if (patientId === '3') {
+      defaultNotes = [
+        { date: '12/03/2026', text: 'Avaliação cardiológica de rotina pré-atividade física. Sem sintomas cardiovasculares. ECG em ritmo sinusal.' }
+      ];
+      defaultMeds = [
+        { name: 'Suplementação Vitamina D 2000UI', freq: '1x/dia', since: 'Mar/2026' }
+      ];
+      defaultFiles = [
+        { id: 'f1', name: 'Eletrocardiograma_Rotina.pdf', date: '12/03/2026', size: '780 KB', type: 'pdf' },
+        { id: 'f2', name: 'Checkup_Geral.pdf', date: '12/03/2026', size: '320 KB', type: 'pdf' }
+      ];
+      defaultPrescriptions = [
+        { type: 'Atestado Médico', date: '12/03/2026', status: 'Emitido', signed: true, print: false }
+      ];
+    } else if (patientId === '4') {
+      defaultNotes = [
+        { date: '01/05/2026', text: 'Acompanhamento de hipertensão arterial sistêmica. Queixa de tosse com enalapril anterior, trocado por losartana.' },
+        { date: '10/01/2026', text: 'Introduzido anlodipino 5mg para controle pressórico noturno.' }
+      ];
+      defaultMeds = [
+        { name: 'Losartana 50mg', freq: '1x/dia', since: 'Nov/2025' },
+        { name: 'Anlodipino 5mg', freq: '1x/dia', since: 'Jan/2026' }
+      ];
+      defaultFiles = [
+        { id: 'f1', name: 'MAPA_24h.pdf', date: '01/05/2026', size: '1.4 MB', type: 'pdf' },
+        { id: 'f2', name: 'Creatinina_Ureia.pdf', date: '10/01/2026', size: '190 KB', type: 'pdf' }
+      ];
+      defaultPrescriptions = [
+        { type: 'Laudo Cardiológico', date: '01/05/2026', status: 'Laudado', signed: true, print: true }
+      ];
+    } else if (patientId !== '1') {
+      defaultNotes = [
+        { date: new Date().toLocaleDateString('pt-BR'), text: `Primeiro atendimento clínico ambulatorial registrado para ${loadedPatient.name}. Anamnese inicial e acolhimento.` }
+      ];
+      defaultMeds = [];
+      defaultFiles = [];
+      defaultPrescriptions = [];
+    }
 
     setNotes(defaultNotes);
     setMedications(defaultMeds);
@@ -254,9 +428,9 @@ Rua das Flores, 1200 - São Paulo, SP | CNPJ: 12.345.678/0001-90
 ================================================================================
 LAUDO LABORATORIAL DE HEMOGRAMA COMPLETO
 ================================================================================
-PACIENTE: Maria Santos
-REGISTRO: #PR-001 | IDADE: 45 anos | SEXO: Feminino
-CONVÊNIO: Unimed | DATA DA COLETA/EMISSÃO: ${exam.date}
+PACIENTE: ${patientData.name}
+REGISTRO: #PR-00${patientData.id} | IDADE: ${patientData.age} anos | SEXO: ${patientData.gender}
+CONVÊNIO: ${patientData.insurance} | DATA DA COLETA/EMISSÃO: ${exam.date}
 MÉDICO SOLICITANTE: ${doctorName} (${doctorCrm})
 
 --------------------------------------------------------------------------------
@@ -296,7 +470,7 @@ Morfologia eritrocitária, leucocitária e plaquetária normais.
 RESPONSÁVEL TÉCNICO:
 Dra. Valéria Campos - CRF/SP 48.912
 Certificação Digital ICP-Brasil: VALIDADA (Hash SHA-256: 7f83a21b38cf4029afbf4c8996)
-Repositório S3: s3://pohinc-exams/patients/1/${exam.name}
+Repositório S3: s3://pohinc-exams/patients/${patientData.id}/${exam.name}
 ================================================================================`;
     } else if (isEcg) {
       content = `CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
@@ -305,8 +479,8 @@ Rua das Flores, 1200 - São Paulo, SP | CNPJ: 12.345.678/0001-90
 ================================================================================
 LAUDO DE ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES CONVENCIONAIS)
 ================================================================================
-PACIENTE: Maria Santos
-REGISTRO: #PR-001 | IDADE: 45 anos | SEXO: Feminino
+PACIENTE: ${patientData.name}
+REGISTRO: #PR-00${patientData.id} | IDADE: ${patientData.age} anos | SEXO: ${patientData.gender}
 DATA DO EXAME: ${exam.date} | HORA: 09:15 BRT
 INDICAÇÃO: Avaliação de queixa de palpitações transitórias e hipertensão
 
@@ -331,14 +505,14 @@ MÉDICO CARDIOLOGISTA RESPONSÁVEL:
 ${doctorName} - ${doctorCrm}
 Certificação Digital ICP-Brasil: VALIDADA E LAUDADA
 Rastreabilidade: HL7 FHIR R4 DiagnosticReport / ANVISA RDC 657/2022 SaMD
-Repositório S3: s3://pohinc-exams/patients/1/${exam.name}
+Repositório S3: s3://pohinc-exams/patients/${patientData.id}/${exam.name}
 ================================================================================`;
     } else {
       content = `CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
 REPOSITÓRIO DE DOCUMENTOS MÉDICOS INTEGRADOS
 ================================================================================
 DOCUMENTO: ${exam.name}
-PACIENTE: Maria Santos | DATA: ${exam.date}
+PACIENTE: ${patientData.name} | DATA: ${exam.date}
 TAMANHO: ${exam.size} | FORMATO: ${exam.type.toUpperCase()}
 STATUS: Arquivo Íntegro & Autenticado (MinIO S3 / pohinc-exams)
 HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
@@ -849,8 +1023,8 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
                   {/* Identificação do Paciente */}
                   <div style={{ backgroundColor: '#f8fafc', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0', marginBottom: '0.8rem', fontSize: '0.72rem' }}>
-                    <div><strong>Paciente:</strong> Maria Santos (45 anos)</div>
-                    <div><strong>Convênio:</strong> Unimed Paulistana • <strong>Prontuário:</strong> #PR-001</div>
+                    <div><strong>Paciente:</strong> {patientData.name} ({patientData.age} anos)</div>
+                    <div><strong>Convênio:</strong> {patientData.insurance} • <strong>Prontuário:</strong> #PR-00{patientData.id}</div>
                     <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString('pt-BR')}</div>
                   </div>
 
@@ -900,7 +1074,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                           ATESTADO MÉDICO
                         </div>
                         <p style={{ textIndent: '1rem', margin: '0.4rem 0' }}>
-                          Atesto para os devidos fins que a paciente <strong>Maria Santos</strong> esteve sob meus cuidados médicos, necessitando de <strong>{templateForm.absenceDays}</strong> de repouso por motivo de {templateForm.absenceReason}.
+                          Atesto para os devidos fins que o(a) paciente <strong>{patientData.name}</strong> esteve sob meus cuidados médicos, necessitando de <strong>{templateForm.absenceDays}</strong> de repouso por motivo de {templateForm.absenceReason}.
                         </p>
                         <div style={{ margin: '0.4rem 0' }}>
                           <strong>Diagnóstico codificado:</strong> {templateForm.cid}
@@ -960,7 +1134,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>{selectedExam.name}</h3>
                 </div>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
-                  Data: {selectedExam.date} • Tamanho: {selectedExam.size} • Paciente: Maria Santos
+                  Data: {selectedExam.date} • Tamanho: {selectedExam.size} • Paciente: {patientData.name}
                 </p>
               </div>
               <button 
@@ -1033,7 +1207,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                         Armazenado no Object Storage (MinIO S3 / pohinc-exams)
                       </span>
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        URI: s3://pohinc-exams/patients/1/{selectedExam.name}
+                        URI: s3://pohinc-exams/patients/{patientData.id}/{selectedExam.name}
                       </span>
                     </div>
                   </div>
@@ -1186,10 +1360,10 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
                 {/* Dados do Paciente */}
                 <div style={{ backgroundColor: '#f8fafc', padding: '0.8rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', fontSize: '0.78rem' }}>
-                  <div><strong>Paciente:</strong> Maria Santos</div>
-                  <div><strong>Idade / Sexo:</strong> 45 anos / Fem</div>
-                  <div><strong>Prontuário:</strong> #PR-001</div>
-                  <div><strong>Convênio:</strong> Unimed Paulistana</div>
+                  <div><strong>Paciente:</strong> {patientData.name}</div>
+                  <div><strong>Idade / Sexo:</strong> {patientData.age} anos / {patientData.gender}</div>
+                  <div><strong>Prontuário:</strong> #PR-00{patientData.id}</div>
+                  <div><strong>Convênio:</strong> {patientData.insurance}</div>
                   <div><strong>Data da Coleta/Exame:</strong> {selectedExam.date}</div>
                   <div><strong>Médico Assistente:</strong> {doctorName}</div>
                 </div>
@@ -1344,14 +1518,18 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         </span>
         <div className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', padding: '1.5rem', backgroundColor: 'var(--bg-card)' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(30, 58, 138, 0.3))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)' }}>M</span>
+            <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              {patientData.name.charAt(0).toUpperCase()}
+            </span>
           </div>
           <div style={{ flex: 1 }}>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>Maria Santos</h1>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>45 anos • Feminino • Cardiologia</p>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>{patientData.name}</h1>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              {patientData.age} anos • {patientData.gender} • {patientData.specialty}
+            </p>
           </div>
           <div style={{ padding: '0.3rem 0.8rem', borderRadius: '8px', backgroundColor: 'var(--badge-blue-bg)' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--badge-blue-text)' }}>Ativo</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--badge-blue-text)' }}>{patientData.status}</span>
           </div>
         </div>
       </div>
@@ -1366,7 +1544,13 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
           <section className="glass-panel" style={{ padding: '1.2rem', backgroundColor: 'var(--bg-card)' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>📋 Informações</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              {[{ label: 'Telefone', value: '(11) 99999-0000' }, { label: 'Email', value: 'maria.s@email.com' }, { label: 'Convênio', value: 'Unimed' }, { label: 'Última consulta', value: '10/04/2026' }].map(f => (
+              {[
+                { label: 'Telefone', value: patientData.phone },
+                { label: 'Email', value: patientData.email },
+                { label: 'CPF', value: patientData.cpf },
+                { label: 'Convênio', value: patientData.insurance },
+                { label: 'Última consulta', value: patientData.lastVisit }
+              ].map(f => (
                 <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{f.label}</span>
                   <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{f.value}</span>

@@ -12,14 +12,18 @@ interface PatientItem {
   lastVisit: string;
   status: string;
   cpf?: string;
+  phone?: string;
+  email?: string;
+  insurance?: string;
+  gender?: string;
   importedFromCentral?: boolean;
 }
 
 const INITIAL_PATIENTS: PatientItem[] = [
-  { id: '1', name: 'Maria Santos', age: 45, lastVisit: '10/04/2026', status: 'Ativo', cpf: '123.456.789-00' },
-  { id: '2', name: 'Carlos Eduardo Oliveira', age: 52, lastVisit: '08/04/2026', status: 'Em Tratamento', cpf: '234.567.890-11' },
-  { id: '3', name: 'Ana Beatriz Lima', age: 29, lastVisit: '12/03/2026', status: 'Alta', cpf: '345.678.901-22' },
-  { id: '4', name: 'Roberto Ferreira Costa', age: 61, lastVisit: '01/05/2026', status: 'Ativo', cpf: '456.789.012-33' },
+  { id: '1', name: 'Maria Santos', age: 45, gender: 'Feminino', lastVisit: '10/04/2026', status: 'Ativo', cpf: '123.456.789-00', phone: '(11) 99123-4567', email: 'maria.santos@email.com', insurance: 'Unimed Paulistana' },
+  { id: '2', name: 'Carlos Eduardo Oliveira', age: 52, gender: 'Masculino', lastVisit: '08/04/2026', status: 'Em Tratamento', cpf: '234.567.890-11', phone: '(11) 98765-4321', email: 'carlos.eduardo@email.com', insurance: 'Bradesco Saúde' },
+  { id: '3', name: 'Ana Beatriz Lima', age: 29, gender: 'Feminino', lastVisit: '12/03/2026', status: 'Alta', cpf: '345.678.901-22', phone: '(11) 97654-3210', email: 'ana.lima@email.com', insurance: 'SulAmérica' },
+  { id: '4', name: 'Roberto Ferreira Costa', age: 61, gender: 'Masculino', lastVisit: '01/05/2026', status: 'Ativo', cpf: '456.789.012-33', phone: '(11) 96543-2109', email: 'roberto.costa@email.com', insurance: 'Amil' },
 ];
 
 export default function PatientsPage() {
@@ -179,6 +183,10 @@ export default function PatientsPage() {
       name: newPatientForm.name.trim(),
       cpf: newPatientForm.cpf.trim() || '123.456.789-99',
       age: parseInt(newPatientForm.age) || 38,
+      phone: newPatientForm.phone.trim() || '(11) 99123-4567',
+      email: newPatientForm.email.trim() || `${newPatientForm.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com`,
+      insurance: newPatientForm.insurance || 'Unimed Paulistana',
+      gender: newPatientForm.name.trim().toLowerCase().endsWith('a') ? 'Feminino' : 'Masculino',
       lastVisit: 'Hoje',
       status: 'Ativo',
       importedFromCentral: false
