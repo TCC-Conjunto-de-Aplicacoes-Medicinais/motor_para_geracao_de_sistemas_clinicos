@@ -605,14 +605,19 @@ func prepareBackend(workDir string, payload *models.SystemPayload) error {
 		return fmt.Errorf("erro durante a cirurgia de código no back-end: %v", err)
 	}
 
+	port := "8080"
+	if payload.Technical.Environment == "local" {
+		port = "8081"
+	}
+
 	envContent := fmt.Sprintf(`DB_USER=clinic_user
 DB_PASSWORD=clinic_pass
 DB_HOST=mariadb_%s
 DB_PORT=3306
 DB_NAME=clinic_%s
 CLINIC_NAME=%s
-PORT=8080
-`, payload.ID, payload.ID, payload.Identity.ClinicName)
+PORT=%s
+`, payload.ID, payload.ID, payload.Identity.ClinicName, port)
 
 	if err := os.WriteFile(filepath.Join(backTarget, ".env"), []byte(envContent), 0644); err != nil {
 		return fmt.Errorf("erro escrevendo .env do back-end: %v", err)

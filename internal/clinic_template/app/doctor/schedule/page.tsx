@@ -28,6 +28,7 @@ function formatMonthYear(weekStart: Date) {
 // -------------
 
 import { useRouter } from 'next/navigation';
+import { useTheme } from '../../components/ThemeProvider';
 
 function formatLocalDate(d: Date) {
   const y = d.getFullYear();
@@ -38,18 +39,49 @@ function formatLocalDate(d: Date) {
 
 export default function SchedulePage() {
   const router = useRouter();
+  const { backendUrl } = useTheme();
   const hours = Array.from({ length: 9 }, (_, i) => i + 8); // 08:00 to 16:00
   const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
   const [currentWeekStart, setCurrentWeekStart] = useState(getStartOfWeek(new Date()));
-  
-  // Array of 7 days for the current week
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
 
   const [appointments, setAppointments] = useState<any[]>([]);
 
-  // Carregar agendamentos persistidos do localStorage
-  React.useEffect(() => {
+  // Carregar agendamentos do backend e localStorage
+  const loadAppointments = async () => {
+    try {
+      const url = backendUrl || 'http://localhost:8081';
+      const res = await fetch(`${url}/api/appointments`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const parsed = data.map((a: any) => {
+            const dt = new Date(a.date_time);
+            const hour = dt.getHours();
+            const dateStr = formatLocalDate(dt);
+            return {
+              id: a.id,
+              date: dateStr,
+              hour: hour,
+              time: `${String(hour).padStart(2, '0')}:00`,
+              patient: a.patient_name || 'Paciente',
+              patientId: a.patient_id || '1',
+              doctor: a.doctor_name || 'Dr. Silva',
+              doctorId: a.doctor_id || 'mock-doctor-silva',
+              type: a.reason || 'Consulta',
+              status: a.status === 'confirmed' ? 'Confirmado' : a.status === 'waiting' ? 'Aguardando' : a.status === 'in_progress' ? 'Em Sala' : a.status === 'completed' ? 'Finalizado' : a.status === 'cancelled' ? 'Cancelado' : 'Agendado',
+              insurance: a.insurance || 'Particular',
+              price: a.price || 250,
+            };
+          });
+          setAppointments(parsed);
+          localStorage.setItem('clinic_appointments', JSON.stringify(parsed));
+          return;
+        }
+      }
+    } catch {}
+
     try {
       const saved = localStorage.getItem('clinic_appointments');
       if (saved) {
@@ -63,14 +95,18 @@ export default function SchedulePage() {
 
     const todayStr = formatLocalDate(new Date());
     const baseAppointments = [
-      { id: 1, date: todayStr, hour: 9, time: '09:00', patient: 'Maria Santos', patientId: '1', type: 'Retorno Cardiológico', status: 'Confirmado' },
-      { id: 2, date: todayStr, hour: 11, time: '11:00', patient: 'Carlos Eduardo Oliveira', patientId: '2', type: 'Consulta Hipertensão', status: 'Aguardando' },
-      { id: 3, date: todayStr, hour: 14, time: '14:00', patient: 'Ana Beatriz Lima', patientId: '3', type: 'Avaliação ECG com IA', status: 'Em Sala' },
-      { id: 4, date: todayStr, hour: 16, time: '16:00', patient: 'Roberto Ferreira Costa', patientId: '4', type: 'Exame de Rotina', status: 'Agendado' },
+      { id: 'apt-1', date: todayStr, hour: 9, time: '09:00', patient: 'Maria Santos', patientId: '1', doctor: 'Dr. Silva', type: 'Retorno Cardiológico', status: 'Confirmado', insurance: 'Particular', price: 280 },
+      { id: 'apt-2', date: todayStr, hour: 11, time: '11:00', patient: 'Carlos Eduardo Oliveira', patientId: '2', doctor: 'Dr. Silva', type: 'Consulta Hipertensão', status: 'Aguardando', insurance: 'Unimed', price: 220 },
+      { id: 'apt-3', date: todayStr, hour: 14, time: '14:00', patient: 'Ana Beatriz Lima', patientId: '3', doctor: 'Dra. Lima', type: 'Avaliação ECG com IA', status: 'Em Sala', insurance: 'Bradesco', price: 350 },
+      { id: 'apt-4', date: todayStr, hour: 16, time: '16:00', patient: 'Roberto Ferreira Costa', patientId: '4', doctor: 'Dr. Santos', type: 'Exame de Rotina', status: 'Agendado', insurance: 'SulAmérica', price: 250 },
     ];
     setAppointments(baseAppointments);
     localStorage.setItem('clinic_appointments', JSON.stringify(baseAppointments));
-  }, []);
+  };
+
+  React.useEffect(() => {
+    loadAppointments();
+  }, [backendUrl]);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -78,7 +114,7 @@ export default function SchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState<{ date: string, hour: number } | null>(null);
   const [selectedApt, setSelectedApt] = useState<any>(null);
 
-  const [newAptForm, setNewAptForm] = useState({ patient: '', type: 'Consulta' });
+  const [newAptForm, setNewAptForm] = useState({ patient: '', type: 'Consulta', doctor: 'Dr. Silva', insurance: 'Particular' });
 
   // Navigation
   const prevWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, -1));
@@ -92,36 +128,69 @@ export default function SchedulePage() {
       setIsViewModalOpen(true);
     } else {
       setSelectedSlot({ date: dateStr, hour });
-      setNewAptForm({ patient: '', type: 'Consulta' });
+      setNewAptForm({ patient: '', type: 'Consulta', doctor: 'Dr. Silva', insurance: 'Particular' });
       setIsAddModalOpen(true);
     }
   };
 
-  const handleAddAppointment = (e: React.FormEvent) => {
+  const handleAddAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot || !newAptForm.patient) return;
 
+    const newId = `apt-${Date.now()}`;
     const newApt = {
-      id: Date.now(),
+      id: newId,
       date: selectedSlot.date,
       hour: selectedSlot.hour,
       time: `${selectedSlot.hour.toString().padStart(2, '0')}:00`,
       patient: newAptForm.patient,
       patientId: '1',
+      doctor: newAptForm.doctor || 'Dr. Silva',
+      doctorId: 'mock-doctor-silva',
       type: newAptForm.type,
-      status: 'Agendado'
+      status: 'Confirmado',
+      insurance: newAptForm.insurance || 'Particular',
+      price: newAptForm.insurance === 'Particular' ? 280 : 220,
     };
 
     const updated = [...appointments, newApt];
     setAppointments(updated);
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
+
+    try {
+      const url = backendUrl || 'http://localhost:8081';
+      const dt = new Date(`${selectedSlot.date}T${String(selectedSlot.hour).padStart(2, '0')}:00:00`);
+      await fetch(`${url}/api/appointments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newId,
+          patient_id: '1',
+          patient_name: newApt.patient,
+          doctor_id: 'mock-doctor-silva',
+          doctor_name: newApt.doctor,
+          date_time: dt.toISOString(),
+          status: 'confirmed',
+          reason: newApt.type,
+          insurance: newApt.insurance,
+          price: newApt.price,
+        }),
+      });
+    } catch {}
+
     setIsAddModalOpen(false);
   };
 
-  const handleCancelAppointment = (id: number) => {
+  const handleCancelAppointment = async (id: any) => {
     const updated = appointments.filter(a => a.id !== id);
     setAppointments(updated);
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
+
+    try {
+      const url = backendUrl || 'http://localhost:8081';
+      await fetch(`${url}/api/appointments/${id}`, { method: 'DELETE' });
+    } catch {}
+
     setIsViewModalOpen(false);
   };
 

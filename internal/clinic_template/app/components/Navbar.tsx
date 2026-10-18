@@ -5,7 +5,7 @@ import { useTheme } from './ThemeProvider';
 import { Moon, Sun, User, Bell } from 'lucide-react';
 
 export default function Navbar() {
-  const { theme, toggleTheme, clinicName } = useTheme();
+  const { theme, toggleTheme, clinicName, logoFile } = useTheme();
   const [userName, setUserName] = React.useState('Dr. Silva');
   const [userRole, setUserRole] = React.useState('Cardiologia');
 
@@ -47,7 +47,19 @@ export default function Navbar() {
       top: 0,
       zIndex: 10
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {logoFile && logoFile !== '[LOGO_UPLOADED]' ? (
+          <img 
+            src={logoFile} 
+            alt={clinicName} 
+            style={{ 
+              height: '38px', 
+              maxWidth: '120px', 
+              objectFit: 'contain', 
+              borderRadius: '6px' 
+            }} 
+          />
+        ) : null}
         <h1 className="clinic-logo" style={{ fontSize: '1.2rem', fontWeight: 700 }}>
           {clinicName}
         </h1>

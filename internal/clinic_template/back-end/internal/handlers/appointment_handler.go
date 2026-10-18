@@ -59,3 +59,63 @@ func CreateAppointmentHandler(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, input)
 }
+
+func UpdateAppointmentHandler(c *gin.Context) {
+	id := c.Param("id")
+	var appointment models.Appointment
+	if err := database.DB.First(&appointment, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Agendamento não encontrado"})
+		return
+	}
+
+	var updates models.Appointment
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
+		return
+	}
+
+	if updates.Status != "" {
+		appointment.Status = updates.Status
+	}
+	if !updates.DateTime.IsZero() {
+		appointment.DateTime = updates.DateTime
+	}
+	if updates.Reason != "" {
+		appointment.Reason = updates.Reason
+	}
+	if updates.Insurance != "" {
+		appointment.Insurance = updates.Insurance
+	}
+	if updates.Price > 0 {
+		appointment.Price = updates.Price
+	}
+	if updates.DoctorName != "" {
+		appointment.DoctorName = updates.DoctorName
+	}
+	if updates.DoctorID != "" {
+		appointment.DoctorID = updates.DoctorID
+	}
+	if updates.PatientName != "" {
+		appointment.PatientName = updates.PatientName
+	}
+	if updates.PatientID != "" {
+		appointment.PatientID = updates.PatientID
+	}
+	appointment.UpdatedAt = time.Now()
+
+	if err := database.DB.Save(&appointment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar agendamento: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, appointment)
+}
+
+func DeleteAppointmentHandler(c *gin.Context) {
+	id := c.Param("id")
+	if err := database.DB.Delete(&models.Appointment{}, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao remover agendamento"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Agendamento removido com sucesso", "id": id})
+}

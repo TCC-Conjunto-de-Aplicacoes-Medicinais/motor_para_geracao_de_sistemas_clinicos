@@ -6,6 +6,8 @@ interface ThemeContextType {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   clinicName: string;
+  logoFile: string | null;
+  logoType: string;
   systemCost: number;
   backendUrl: string;
   config: any;
@@ -15,6 +17,8 @@ const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
   toggleTheme: () => {},
   clinicName: 'Minha Clínica',
+  logoFile: null,
+  logoType: 'generic',
   systemCost: 0,
   backendUrl: '',
   config: null
@@ -35,6 +39,8 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const [mounted, setMounted] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [clinicName, setClinicName] = useState('Clínica');
+  const [logoFile, setLogoFile] = useState<string | null>(null);
+  const [logoType, setLogoType] = useState<string>('generic');
   const [backendUrl, setBackendUrl] = useState('');
   const [systemCost, setSystemCost] = useState(0);
   const [config, setConfig] = useState<any>(null);
@@ -49,6 +55,19 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
         if(cfg?.identity?.clinicName) setClinicName(cfg.identity.clinicName);
         if(cfg?.technical?.estimatedPrice?.monthly) setSystemCost(cfg.technical.estimatedPrice.monthly);
         if(cfg?.backendUrl) setBackendUrl(cfg.backendUrl);
+
+        let initialLogo = cfg?.identity?.logoFile;
+        if (!initialLogo || initialLogo === '[LOGO_UPLOADED]') {
+          if (typeof window !== 'undefined') {
+            initialLogo = localStorage.getItem('clinic_custom_logo') || localStorage.getItem('custom_logo_data');
+          }
+        }
+        if (initialLogo && initialLogo !== '[LOGO_UPLOADED]') {
+          setLogoFile(initialLogo);
+          setLogoType('custom');
+        } else {
+          setLogoType(cfg?.identity?.logoType || 'generic');
+        }
 
         document.documentElement.style.setProperty('--color-primary', colors.primary);
         document.documentElement.style.setProperty('--color-accent', colors.accent);
@@ -76,7 +95,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, clinicName, systemCost, backendUrl, config }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, clinicName, logoFile, logoType, systemCost, backendUrl, config }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -11,8 +11,10 @@ type Appointment struct {
 	DoctorID    string    `json:"doctor_id" gorm:"type:varchar(64);not null"`
 	DoctorName  string    `json:"doctor_name" gorm:"type:varchar(255)"`
 	DateTime    time.Time `json:"date_time"`
-	Status      string    `json:"status" gorm:"type:varchar(30);default:'scheduled'"` // scheduled, completed, cancelled
+	Status      string    `json:"status" gorm:"type:varchar(30);default:'scheduled'"` // scheduled, confirmed, waiting, in_progress, completed, cancelled
 	Reason      string    `json:"reason" gorm:"type:text"`
+	Insurance   string    `json:"insurance" gorm:"type:varchar(100);default:'Particular'"`
+	Price       float64   `json:"price" gorm:"default:250.0"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

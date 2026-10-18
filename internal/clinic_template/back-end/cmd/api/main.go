@@ -75,6 +75,8 @@ func main() {
 		// Agendamentos
 		api.GET("/appointments", handlers.ListAppointmentsHandler)
 		api.POST("/appointments", handlers.CreateAppointmentHandler)
+		api.PUT("/appointments/:id", handlers.UpdateAppointmentHandler)
+		api.DELETE("/appointments/:id", handlers.DeleteAppointmentHandler)
 
 		// Análise de IA para ECG (SaMD ANVISA RDC 657/2022)
 		api.POST("/ecg/analyze", handlers.EcgAnalysisHandler)

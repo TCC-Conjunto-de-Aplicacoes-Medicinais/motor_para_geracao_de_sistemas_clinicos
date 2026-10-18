@@ -1,17 +1,19 @@
 package database
 
 import (
+	"log"
+	"time"
+
 	"clinic-backend/internal/models"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"log"
 )
 
 func SeedData(db *gorm.DB) {
 	log.Println("Seeding default users...")
 
-	// 1. Seed Doctor
-	seedDoctor(db)
+	// 1. Seed Doctors
+	seedDoctors(db)
 
 	// 2. Seed Assistant
 	seedAssistant(db)
@@ -22,6 +24,9 @@ func SeedData(db *gorm.DB) {
 	// 4. Seed Base Patients
 	seedPatients(db)
 
+	// 5. Seed Base Appointments
+	seedAppointments(db)
+
 	log.Println("Seeding completed!")
 }
 
@@ -30,19 +35,40 @@ func hashPassword(password string) string {
 	return string(bytes)
 }
 
-func seedDoctor(db *gorm.DB) {
-	var count int64
-	db.Model(&models.Doctor{}).Where("email = ?", "medico@gmail.com").Count(&count)
-	if count == 0 {
-		doctor := models.Doctor{
-			Name:       "Dr. Padrão",
+func seedDoctors(db *gorm.DB) {
+	doctors := []models.Doctor{
+		{
+			Name:       "Dr. Silva",
 			Email:      "medico@gmail.com",
 			Password:   hashPassword("medico123"),
 			CPF:        "000.000.000-00",
 			CRM:        "123456/SP",
-			KeycloakID: "mock-doctor-id",
+			KeycloakID: "mock-doctor-silva",
+		},
+		{
+			Name:       "Dra. Lima",
+			Email:      "dra.lima@gmail.com",
+			Password:   hashPassword("medico123"),
+			CPF:        "000.000.000-01",
+			CRM:        "234567/SP",
+			KeycloakID: "mock-doctor-lima",
+		},
+		{
+			Name:       "Dr. Santos",
+			Email:      "dr.santos@gmail.com",
+			Password:   hashPassword("medico123"),
+			CPF:        "000.000.000-02",
+			CRM:        "345678/SP",
+			KeycloakID: "mock-doctor-santos",
+		},
+	}
+
+	for _, doc := range doctors {
+		var count int64
+		db.Model(&models.Doctor{}).Where("email = ?", doc.Email).Count(&count)
+		if count == 0 {
+			db.Create(&doc)
 		}
-		db.Create(&doctor)
 	}
 }
 
@@ -129,5 +155,129 @@ func seedPatients(db *gorm.DB) {
 		log.Println("[Seed] Pacientes base da rede POHINC integrados com sucesso no banco de dados!")
 	}
 }
+
+func seedAppointments(db *gorm.DB) {
+	var count int64
+	db.Model(&models.Appointment{}).Count(&count)
+	if count == 0 {
+		now := time.Now()
+		// Horários base de hoje
+		t1 := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, now.Location())
+		t2 := time.Date(now.Year(), now.Month(), now.Day(), 11, 0, 0, 0, now.Location())
+		t3 := time.Date(now.Year(), now.Month(), now.Day(), 14, 0, 0, 0, now.Location())
+		t4 := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
+		// Dias seguintes
+		t5 := t1.Add(24 * time.Hour)
+		t6 := t3.Add(24 * time.Hour)
+		t7 := t2.Add(48 * time.Hour)
+
+		baseAppointments := []models.Appointment{
+			{
+				ID:          "apt-1",
+				PatientID:   "1",
+				PatientName: "Maria Santos",
+				DoctorID:    "mock-doctor-silva",
+				DoctorName:  "Dr. Silva",
+				DateTime:    t1,
+				Status:      "confirmed",
+				Reason:      "Retorno Cardiológico",
+				Insurance:   "Particular",
+				Price:       280.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-2",
+				PatientID:   "2",
+				PatientName: "Carlos Eduardo Oliveira",
+				DoctorID:    "mock-doctor-silva",
+				DoctorName:  "Dr. Silva",
+				DateTime:    t2,
+				Status:      "waiting",
+				Reason:      "Consulta Hipertensão",
+				Insurance:   "Unimed",
+				Price:       220.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-3",
+				PatientID:   "3",
+				PatientName: "Ana Beatriz Lima",
+				DoctorID:    "mock-doctor-lima",
+				DoctorName:  "Dra. Lima",
+				DateTime:    t3,
+				Status:      "in_progress",
+				Reason:      "Avaliação ECG com IA",
+				Insurance:   "Bradesco",
+				Price:       350.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-4",
+				PatientID:   "4",
+				PatientName: "Roberto Ferreira Costa",
+				DoctorID:    "mock-doctor-santos",
+				DoctorName:  "Dr. Santos",
+				DateTime:    t4,
+				Status:      "scheduled",
+				Reason:      "Exame de Rotina",
+				Insurance:   "SulAmérica",
+				Price:       250.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-5",
+				PatientID:   "1",
+				PatientName: "Maria Santos",
+				DoctorID:    "mock-doctor-lima",
+				DoctorName:  "Dra. Lima",
+				DateTime:    t5,
+				Status:      "scheduled",
+				Reason:      "Revisão de Exames de Sangue",
+				Insurance:   "Particular",
+				Price:       280.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-6",
+				PatientID:   "2",
+				PatientName: "Carlos Eduardo Oliveira",
+				DoctorID:    "mock-doctor-santos",
+				DoctorName:  "Dr. Santos",
+				DateTime:    t6,
+				Status:      "scheduled",
+				Reason:      "Eletrocardiograma de Esforço",
+				Insurance:   "Unimed",
+				Price:       320.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+			{
+				ID:          "apt-7",
+				PatientID:   "3",
+				PatientName: "Ana Beatriz Lima",
+				DoctorID:    "mock-doctor-silva",
+				DoctorName:  "Dr. Silva",
+				DateTime:    t7,
+				Status:      "scheduled",
+				Reason:      "Consulta Cardiológica Preventiva",
+				Insurance:   "Bradesco",
+				Price:       250.0,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+		}
+
+		for _, a := range baseAppointments {
+			db.Create(&a)
+		}
+		log.Println("[Seed] Agendamentos base inseridos com sucesso no banco de dados!")
+	}
+}
+
 
 

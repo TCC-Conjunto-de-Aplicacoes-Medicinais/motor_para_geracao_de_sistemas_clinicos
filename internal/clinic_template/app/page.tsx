@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { clinicName, backendUrl, config } = useTheme();
+  const { clinicName, backendUrl, config, logoFile } = useTheme();
 
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -101,7 +101,20 @@ export default function LoginPage() {
         border: '1px solid rgba(255, 255, 255, 0.1)',
         backdropFilter: 'blur(20px)'
       }}>
-        <div style={{ textAlign: 'center' }}>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {logoFile && logoFile !== '[LOGO_UPLOADED]' ? (
+            <img 
+              src={logoFile} 
+              alt={clinicName} 
+              style={{ 
+                maxHeight: '64px', 
+                maxWidth: '220px', 
+                objectFit: 'contain', 
+                marginBottom: '1rem', 
+                borderRadius: '8px' 
+              }} 
+            />
+          ) : null}
           <h1 className="clinic-logo text-gradient" style={{ fontSize: '2.5rem', fontWeight: 900, marginBottom: '0.5rem' }}>
             {clinicName}
           </h1>
