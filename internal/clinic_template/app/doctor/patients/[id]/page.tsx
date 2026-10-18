@@ -183,21 +183,20 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         const parsedList = JSON.parse(savedList);
         if (Array.isArray(parsedList)) {
           const found = parsedList.find((p: any) => String(p.id) === patientId);
-          if (found) {
+            const baseDefaults = DEFAULT_PATIENTS[patientId];
             loadedPatient = {
               id: String(found.id),
               name: found.name || loadedPatient.name,
               age: found.age || loadedPatient.age,
-              gender: found.gender || (found.name?.toLowerCase().endsWith('a') ? 'Feminino' : 'Masculino'),
-              cpf: found.cpf || loadedPatient.cpf,
-              phone: found.phone || loadedPatient.phone,
-              email: found.email || (found.name ? `${found.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com` : loadedPatient.email),
-              insurance: found.insurance || loadedPatient.insurance,
-              specialty: found.specialty || loadedPatient.specialty,
-              status: found.status || loadedPatient.status,
-              lastVisit: found.lastVisit || loadedPatient.lastVisit,
+              gender: found.gender || baseDefaults?.gender || (found.name?.trim().split(' ')[0]?.toLowerCase().endsWith('a') ? 'Feminino' : 'Masculino'),
+              cpf: found.cpf || baseDefaults?.cpf || loadedPatient.cpf,
+              phone: found.phone || baseDefaults?.phone || loadedPatient.phone,
+              email: found.email || baseDefaults?.email || (found.name ? `${found.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com` : loadedPatient.email),
+              insurance: found.insurance || baseDefaults?.insurance || loadedPatient.insurance,
+              specialty: found.specialty || baseDefaults?.specialty || loadedPatient.specialty,
+              status: found.status || baseDefaults?.status || loadedPatient.status,
+              lastVisit: found.lastVisit || baseDefaults?.lastVisit || loadedPatient.lastVisit,
             };
-          }
         }
       }
     } catch (e) {
