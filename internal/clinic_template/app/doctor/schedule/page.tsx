@@ -27,7 +27,17 @@ function formatMonthYear(weekStart: Date) {
 }
 // -------------
 
+import { useRouter } from 'next/navigation';
+
+function formatLocalDate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function SchedulePage() {
+  const router = useRouter();
   const hours = Array.from({ length: 9 }, (_, i) => i + 8); // 08:00 to 16:00
   const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -36,10 +46,31 @@ export default function SchedulePage() {
   // Array of 7 days for the current week
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
 
-  const [appointments, setAppointments] = useState([
-    { id: 1, date: '2026-05-13', hour: 9, patient: 'João P.', type: 'Consulta', status: 'Confirmado' },
-    { id: 2, date: '2026-05-15', hour: 14, patient: 'Maria S.', type: 'Retorno', status: 'Aguardando' }
-  ]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+
+  // Carregar agendamentos persistidos do localStorage
+  React.useEffect(() => {
+    try {
+      const saved = localStorage.getItem('clinic_appointments');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAppointments(parsed);
+          return;
+        }
+      }
+    } catch {}
+
+    const todayStr = formatLocalDate(new Date());
+    const baseAppointments = [
+      { id: 1, date: todayStr, hour: 9, time: '09:00', patient: 'Maria Santos', patientId: '1', type: 'Retorno Cardiológico', status: 'Confirmado' },
+      { id: 2, date: todayStr, hour: 11, time: '11:00', patient: 'Carlos Eduardo Oliveira', patientId: '2', type: 'Consulta Hipertensão', status: 'Aguardando' },
+      { id: 3, date: todayStr, hour: 14, time: '14:00', patient: 'Ana Beatriz Lima', patientId: '3', type: 'Avaliação ECG com IA', status: 'Em Sala' },
+      { id: 4, date: todayStr, hour: 16, time: '16:00', patient: 'Roberto Ferreira Costa', patientId: '4', type: 'Exame de Rotina', status: 'Agendado' },
+    ];
+    setAppointments(baseAppointments);
+    localStorage.setItem('clinic_appointments', JSON.stringify(baseAppointments));
+  }, []);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -74,13 +105,24 @@ export default function SchedulePage() {
       id: Date.now(),
       date: selectedSlot.date,
       hour: selectedSlot.hour,
+      time: `${selectedSlot.hour.toString().padStart(2, '0')}:00`,
       patient: newAptForm.patient,
+      patientId: '1',
       type: newAptForm.type,
       status: 'Agendado'
     };
 
-    setAppointments([...appointments, newApt]);
+    const updated = [...appointments, newApt];
+    setAppointments(updated);
+    localStorage.setItem('clinic_appointments', JSON.stringify(updated));
     setIsAddModalOpen(false);
+  };
+
+  const handleCancelAppointment = (id: number) => {
+    const updated = appointments.filter(a => a.id !== id);
+    setAppointments(updated);
+    localStorage.setItem('clinic_appointments', JSON.stringify(updated));
+    setIsViewModalOpen(false);
   };
 
   const monthYearStr = formatMonthYear(currentWeekStart);
@@ -116,7 +158,7 @@ export default function SchedulePage() {
           <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-glass)' }}>
             <div style={{ width: '60px', flexShrink: 0, borderRight: '1px solid var(--border-color)' }}></div>
             {weekDays.map((dateObj, i) => {
-              const isToday = dateObj.toISOString().split('T')[0] === new Date().toISOString().split('T')[0];
+              const isToday = formatLocalDate(dateObj) === formatLocalDate(new Date());
               return (
                 <div key={i} style={{ 
                   flex: 1, 
@@ -153,7 +195,7 @@ export default function SchedulePage() {
                   {hour.toString().padStart(2, '0')}:00
                 </div>
                 {weekDays.map((dateObj, dayIdx) => {
-                  const dateStr = dateObj.toISOString().split('T')[0];
+                  const dateStr = formatLocalDate(dateObj);
                   const apt = appointments.find(a => a.date === dateStr && a.hour === hour);
                   
                   return (
@@ -287,10 +329,21 @@ export default function SchedulePage() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-              <button onClick={() => setIsViewModalOpen(false)} style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--badge-red-text)', background: 'transparent', color: 'var(--badge-red-text)', fontWeight: 600, cursor: 'pointer' }}>
+              <button 
+                type="button"
+                onClick={() => handleCancelAppointment(selectedApt.id)} 
+                style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--badge-red-text)', background: 'transparent', color: 'var(--badge-red-text)', fontWeight: 600, cursor: 'pointer' }}
+              >
                 Cancelar Agendamento
               </button>
-              <button onClick={() => setIsViewModalOpen(false)} style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: 'none', background: 'var(--color-primary)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  router.push(`/doctor/patients/${selectedApt.patientId || '1'}`);
+                }} 
+                style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: 'none', background: 'var(--color-primary)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+              >
                 Iniciar Atendimento
               </button>
             </div>

@@ -16,10 +16,10 @@ interface PatientItem {
 }
 
 const INITIAL_PATIENTS: PatientItem[] = [
-  { id: '1', name: 'Maria Souza', age: 45, lastVisit: '10/04/2026', status: 'Ativo', cpf: '123.456.789-00' },
-  { id: '2', name: 'João Pereira', age: 32, lastVisit: '05/04/2026', status: 'Em Tratamento', cpf: '234.567.890-11' },
-  { id: '3', name: 'Ana Lima', age: 28, lastVisit: '12/03/2026', status: 'Alta', cpf: '345.678.901-22' },
-  { id: '4', name: 'Carlos Santos', age: 60, lastVisit: '01/05/2026', status: 'Ativo', cpf: '456.789.012-33' },
+  { id: '1', name: 'Maria Santos', age: 45, lastVisit: '10/04/2026', status: 'Ativo', cpf: '123.456.789-00' },
+  { id: '2', name: 'Carlos Eduardo Oliveira', age: 52, lastVisit: '08/04/2026', status: 'Em Tratamento', cpf: '234.567.890-11' },
+  { id: '3', name: 'Ana Beatriz Lima', age: 29, lastVisit: '12/03/2026', status: 'Alta', cpf: '345.678.901-22' },
+  { id: '4', name: 'Roberto Ferreira Costa', age: 61, lastVisit: '01/05/2026', status: 'Ativo', cpf: '456.789.012-33' },
 ];
 
 export default function PatientsPage() {
@@ -28,6 +28,18 @@ export default function PatientsPage() {
 
   const [patients, setPatients] = useState<PatientItem[]>(INITIAL_PATIENTS);
   const [searchTerm, setSearchTerm] = useState('');
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+
+  // Modal Novo Paciente
+  const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
+  const [newPatientForm, setNewPatientForm] = useState({
+    name: '',
+    cpf: '',
+    age: '',
+    phone: '',
+    email: '',
+    insurance: 'Unimed'
+  });
   
   // Modal de Importação do Centralizador
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,8 +49,19 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string; details?: string } | null>(null);
 
-  // Busca pacientes locais caso o backend esteja ativo
+  // Busca pacientes locais caso o backend esteja ativo ou carrega do localStorage
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('clinic_patients_list');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPatients(parsed);
+          return;
+        }
+      }
+    } catch {}
+
     async function loadPatients() {
       try {
         const res = await fetch(`${backendUrl}/api/patients`);
@@ -55,11 +78,14 @@ export default function PatientsPage() {
               importedFromCentral: p.address?.includes('POHINC'),
             }));
             setPatients(mapped);
+            localStorage.setItem('clinic_patients_list', JSON.stringify(mapped));
+            return;
           }
         }
       } catch {
         // Fallback mantém INITIAL_PATIENTS
       }
+      localStorage.setItem('clinic_patients_list', JSON.stringify(INITIAL_PATIENTS));
     }
     loadPatients();
   }, [backendUrl]);
@@ -121,7 +147,7 @@ export default function PatientsPage() {
       // Fallback gracioso para garantir a experiência contínua em apresentações acadêmicas
       const demoImported: PatientItem = {
         id: '1',
-        name: 'Maria Souza (Importada POHINC)',
+        name: 'Maria Santos (Importada POHINC)',
         age: 45,
         lastVisit: 'Hoje (HL7 FHIR)',
         status: 'Ativo',
@@ -131,7 +157,7 @@ export default function PatientsPage() {
       setPatients(prev => [demoImported, ...prev.filter(p => p.id !== '1')]);
       setFeedback({
         type: 'success',
-        message: `Paciente Maria Souza integrado com sucesso via HL7 FHIR!`,
+        message: `Paciente Maria Santos integrado com sucesso via HL7 FHIR!`,
         details: `1 exame prévio de eletrocardiograma (Clínica Sorriso) incorporado ao prontuário.`,
       });
       setTimeout(() => {
@@ -142,6 +168,60 @@ export default function PatientsPage() {
       setLoading(false);
     }
   }
+
+  const handleCreatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPatientForm.name.trim()) return;
+
+    const newId = String(Date.now());
+    const newPatient: PatientItem = {
+      id: newId,
+      name: newPatientForm.name.trim(),
+      cpf: newPatientForm.cpf.trim() || '123.456.789-99',
+      age: parseInt(newPatientForm.age) || 38,
+      lastVisit: 'Hoje',
+      status: 'Ativo',
+      importedFromCentral: false
+    };
+
+    const updated = [newPatient, ...patients];
+    setPatients(updated);
+    localStorage.setItem('clinic_patients_list', JSON.stringify(updated));
+
+    localStorage.setItem(`clinic_patient_${newId}_records`, JSON.stringify({
+      notes: [{ date: new Date().toLocaleDateString('pt-BR'), text: 'Paciente cadastrado no sistema ambulatorial.' }],
+      medications: [],
+      files: [],
+      prescriptions: [],
+      aiResult: null
+    }));
+
+    try {
+      await fetch(`${backendUrl}/api/patients`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newId,
+          name: newPatient.name,
+          cpf: newPatient.cpf,
+          birth_date: '1988-05-15',
+          address: 'São Paulo - SP',
+          created_at: new Date().toISOString()
+        })
+      });
+    } catch {}
+
+    setIsNewPatientModalOpen(false);
+    setNewPatientForm({ name: '', cpf: '', age: '', phone: '', email: '', insurance: 'Unimed' });
+    router.push(`/doctor/patients/${newId}`);
+  };
+
+  const handleDeletePatient = (id: string) => {
+    const updated = patients.filter(p => p.id !== id);
+    setPatients(updated);
+    localStorage.setItem('clinic_patients_list', JSON.stringify(updated));
+    setOpenActionMenuId(null);
+  };
 
   const filteredPatients = patients.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -160,6 +240,7 @@ export default function PatientsPage() {
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button 
+            type="button"
             onClick={() => { setIsModalOpen(true); setFeedback(null); }}
             style={{
               padding: '0.8rem 1.4rem',
@@ -179,16 +260,20 @@ export default function PatientsPage() {
             <Globe size={18} /> Importar do POHINC Central
           </button>
 
-          <button style={{
-            padding: '0.8rem 1.4rem',
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: 'var(--color-primary)',
-            color: '#fff',
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: 'var(--shadow-md)'
-          }}>
+          <button 
+            type="button"
+            onClick={() => setIsNewPatientModalOpen(true)}
+            style={{
+              padding: '0.8rem 1.4rem',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: 'var(--color-primary)',
+              color: '#fff',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
             + Novo Paciente
           </button>
         </div>
@@ -295,10 +380,89 @@ export default function PatientsPage() {
                     {p.status}
                   </span>
                 </td>
-                <td style={{ padding: '1rem' }}>
-                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                    <MoreVertical size={20} />
-                  </button>
+                <td 
+                  style={{ padding: '1rem', position: 'relative' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/doctor/patients/${p.id}`);
+                      }}
+                      title="Abrir Prontuário"
+                      style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                    >
+                      Prontuário ↗
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenActionMenuId(openActionMenuId === p.id ? null : p.id);
+                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.3rem', borderRadius: '4px' }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
+
+                  {openActionMenuId === p.id && (
+                    <div style={{
+                      position: 'absolute',
+                      right: '1rem',
+                      top: '3.2rem',
+                      zIndex: 100,
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      boxShadow: 'var(--shadow-lg)',
+                      minWidth: '180px',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenActionMenuId(null);
+                          router.push(`/doctor/patients/${p.id}`);
+                        }}
+                        style={{ padding: '0.7rem 1rem', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-app)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        📋 Abrir Prontuário
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenActionMenuId(null);
+                          router.push(`/doctor/schedule`);
+                        }}
+                        style={{ padding: '0.7rem 1rem', textAlign: 'left', background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-app)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        📅 Agendar Consulta
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePatient(p.id);
+                        }}
+                        style={{ padding: '0.7rem 1rem', textAlign: 'left', background: 'none', border: 'none', color: '#ef4444', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid var(--border-color)' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        🗑️ Excluir Paciente
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -504,6 +668,143 @@ export default function PatientsPage() {
                       <Globe size={18} /> Importar Prontuário
                     </>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Novo Paciente */}
+      {isNewPatientModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '1rem',
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '520px',
+            width: '100%',
+            padding: '2rem',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '16px',
+            boxShadow: 'var(--shadow-xl)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.8rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  Cadastrar Novo Paciente
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
+                  Adicione o registro ambulatorial na base da clínica
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsNewPatientModalOpen(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '0.2rem 0.5rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePatient} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                  Nome Completo *
+                </label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="Ex: Amanda Silva Castro"
+                  value={newPatientForm.name}
+                  onChange={e => setNewPatientForm({ ...newPatientForm, name: e.target.value })}
+                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                    CPF
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="000.000.000-00"
+                    value={newPatientForm.cpf}
+                    onChange={e => setNewPatientForm({ ...newPatientForm, cpf: e.target.value })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                    Idade
+                  </label>
+                  <input 
+                    type="number"
+                    placeholder="Ex: 42"
+                    value={newPatientForm.age}
+                    onChange={e => setNewPatientForm({ ...newPatientForm, age: e.target.value })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                    Telefone
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="(11) 98765-4321"
+                    value={newPatientForm.phone}
+                    onChange={e => setNewPatientForm({ ...newPatientForm, phone: e.target.value })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                    Convênio / Plano
+                  </label>
+                  <select 
+                    value={newPatientForm.insurance}
+                    onChange={e => setNewPatientForm({ ...newPatientForm, insurance: e.target.value })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value="Unimed">Unimed</option>
+                    <option value="Bradesco Saúde">Bradesco Saúde</option>
+                    <option value="Amil">Amil</option>
+                    <option value="SulAmérica">SulAmérica</option>
+                    <option value="Particular">Particular</option>
+                    <option value="SUS">SUS</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.8rem', marginTop: '1rem' }}>
+                <button 
+                  type="button"
+                  onClick={() => setIsNewPatientModalOpen(false)}
+                  style={{ flex: 1, padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  style={{ flex: 2, padding: '0.8rem', borderRadius: '8px', border: 'none', backgroundColor: 'var(--color-primary)', color: '#fff', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-md)' }}
+                >
+                  Salvar e Abrir Prontuário
                 </button>
               </div>
             </form>

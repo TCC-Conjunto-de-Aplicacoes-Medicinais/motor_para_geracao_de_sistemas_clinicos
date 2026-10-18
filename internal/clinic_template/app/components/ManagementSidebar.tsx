@@ -4,16 +4,24 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, BarChart3, Settings, LogOut } from 'lucide-react';
+import { useTheme } from './ThemeProvider';
 
 export default function ManagementSidebar() {
   const pathname = usePathname();
+  const { config } = useTheme();
+
+  const mgmtFeatures = config?.modules?.management?.features;
+
+  const showDashboards = mgmtFeatures ? mgmtFeatures.dashboards === true : true;
+  const showStaff = mgmtFeatures ? mgmtFeatures.staffRegistration !== false : true;
+  const showBilling = mgmtFeatures ? (mgmtFeatures.billingControl === true || mgmtFeatures.billingByDoctor === true) : true;
 
   const menuItems = [
-    { name: 'Dashboard', path: '/management', icon: LayoutDashboard },
-    { name: 'Equipe', path: '/management/staff', icon: Users },
-    { name: 'Faturamento', path: '/management/billing', icon: BarChart3 },
-    { name: 'Configurações', path: '/management/config', icon: Settings },
-  ];
+    { name: 'Dashboard', path: '/management', icon: LayoutDashboard, show: showDashboards },
+    { name: 'Equipe', path: '/management/staff', icon: Users, show: showStaff },
+    { name: 'Faturamento', path: '/management/billing', icon: BarChart3, show: showBilling },
+    { name: 'Configurações', path: '/management/config', icon: Settings, show: true },
+  ].filter(item => item.show);
 
   return (
     <aside style={{

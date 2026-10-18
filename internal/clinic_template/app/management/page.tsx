@@ -1,11 +1,24 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTheme } from '../components/ThemeProvider';
 import { TrendingUp, TrendingDown, DollarSign, PieChart } from 'lucide-react';
 
 export default function ManagementDashboard() {
-  const { systemCost } = useTheme();
+  const { systemCost, config } = useTheme();
+  const router = useRouter();
+
+  const mgmtFeatures = config?.modules?.management?.features;
+  const showDashboards = mgmtFeatures ? mgmtFeatures.dashboards === true : true;
+  const showBilling = mgmtFeatures ? (mgmtFeatures.billingControl === true || mgmtFeatures.billingByDoctor === true) : true;
+  const showStaff = mgmtFeatures ? mgmtFeatures.staffRegistration !== false : true;
+
+  useEffect(() => {
+    if (!showDashboards && !showBilling && showStaff) {
+      router.push('/management/staff');
+    }
+  }, [showDashboards, showBilling, showStaff, router]);
 
   // Mock financial data
   const revenue = 32500;

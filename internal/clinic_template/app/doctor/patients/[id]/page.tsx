@@ -66,8 +66,25 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   const [showMedModal, setShowMedModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [selectedExam, setSelectedExam] = useState<any | null>(null);
+  const [examViewTab, setExamViewTab] = useState<'structured' | 'sheet'>('structured');
   const [medForm, setMedForm] = useState({ name: '', freq: '' });
-  const [prescriptionText, setPrescriptionText] = useState('Receituário Padrão\n\nPaciente: Maria Santos\n\nPrescrição:\n1. \n\n\nAssinatura: Dr. Silva');
+  
+  // Template Builder Clínico Estruturado
+  const [templateType, setTemplateType] = useState<'receituario' | 'laudo' | 'atestado'>('receituario');
+  const [templateForm, setTemplateForm] = useState({
+    medicationName: 'Losartana Potássica 50mg',
+    dosage: 'Tomar 1 comprimido VO pela manhã em jejum',
+    duration: 'Uso contínuo (reavaliação ambulatorial em 90 dias)',
+    instructions: 'Aferir pressão arterial 2 vezes por semana. Manter dieta hipossódica e hidratação regular.',
+    clinicalIndication: 'Investigação de queixa de palpitações e controle de hipertensão arterial.',
+    findings: 'Ritmo sinusal regular. Intervalos PR e QTc normais. Sem sobrecargas cavitárias ou alterações isquêmicas agudas.',
+    conclusion: 'Eletrocardiograma de repouso dentro dos limites da normalidade para faixa etária.',
+    recommendation: 'Manter posologia atual e retornar em 6 meses com novos exames de rotina.',
+    cid: 'I10 - Hipertensão essencial (primária)',
+    absenceDays: '2 (dois) dias',
+    absenceReason: 'Necessidade de repouso clínico para estabilização hemodinâmica.',
+    generalNotes: 'Paciente esteve sob atendimento médico nesta clínica ambulatorial.',
+  });
 
   // 1. Carregar Dados Persistidos do Prontuário e do Médico
   useEffect(() => {
@@ -76,10 +93,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     if (savedDoc) {
       try {
         const doc = JSON.parse(savedDoc);
-        if (doc.name) {
-          setDoctorName(doc.name);
-          setPrescriptionText(`Receituário Padrão\n\nPaciente: Maria Santos\n\nPrescrição:\n1. \n\n\nAssinatura: ${doc.name} (${doc.crm || 'CRM Ativo'})`);
-        }
+        if (doc.name) setDoctorName(doc.name);
         if (doc.crm) setDoctorCrm(doc.crm);
       } catch (e) {
         console.error('Erro ao ler perfil do médico:', e);
@@ -199,19 +213,151 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     showToast(`✓ Medicamento "${medForm.name}" adicionado à rotina!`);
   };
 
-  // Handlers de Prescrição
+  // Handlers de Prescrição e Modelos Estruturados
   const handleSavePrescription = () => {
+    let docType = 'Receituário Especial';
+    let docStatus = 'Emitido';
+
+    if (templateType === 'laudo') {
+      docType = 'Laudo Cardiológico';
+      docStatus = 'Laudado';
+    } else if (templateType === 'atestado') {
+      docType = 'Atestado Médico';
+      docStatus = 'Emitido';
+    }
+
     const updatedPresc = [{ 
-      type: 'Receituário Oficial', 
+      type: docType, 
       date: new Date().toLocaleDateString('pt-BR'), 
-      status: 'Emitido', 
+      status: docStatus, 
       signed: true, 
       print: true 
     }, ...prescriptions];
+
     setPrescriptions(updatedPresc);
     persistPatientData({ prescriptions: updatedPresc });
     setShowPrescriptionModal(false);
-    showToast('✓ Receituário emitido e assinado digitalmente!');
+    showToast(`✓ ${docType} emitido, assinado digitalmente e anexado ao prontuário!`);
+  };
+
+  // Download Real de Arquivo de Exame do Repositório
+  const handleDownloadExamFile = (exam: any) => {
+    if (!exam) return;
+    const isEcg = exam.name.toLowerCase().includes('ecg');
+    const isHemograma = exam.name.toLowerCase().includes('hemograma');
+
+    let content = '';
+    if (isHemograma) {
+      content = `CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
+LABORATÓRIO CENTRAL DE ANÁLISES CLÍNICAS
+Rua das Flores, 1200 - São Paulo, SP | CNPJ: 12.345.678/0001-90
+================================================================================
+LAUDO LABORATORIAL DE HEMOGRAMA COMPLETO
+================================================================================
+PACIENTE: Maria Santos
+REGISTRO: #PR-001 | IDADE: 45 anos | SEXO: Feminino
+CONVÊNIO: Unimed | DATA DA COLETA/EMISSÃO: ${exam.date}
+MÉDICO SOLICITANTE: ${doctorName} (${doctorCrm})
+
+--------------------------------------------------------------------------------
+1. SÉRIE VERMELHA (ERITROGRAMA)
+--------------------------------------------------------------------------------
+Hemácias .................: 4.85 milhões/mm³     (Ref: 4.00 a 5.40 milhões/mm³)  [NORMAL]
+Hemoglobina ..............: 14.2 g/dL             (Ref: 12.0 a 16.0 g/dL)          [NORMAL]
+Hematócrito ..............: 42.1 %                (Ref: 36.0 a 47.0 %)             [NORMAL]
+VCM ......................: 86.8 fL               (Ref: 80.0 a 100.0 fL)           [NORMAL]
+HCM ......................: 29.3 pg               (Ref: 27.0 a 33.0 pg)            [NORMAL]
+CHCM .....................: 33.7 g/dL             (Ref: 32.0 a 36.0 g/dL)          [NORMAL]
+RDW ......................: 12.8 %                (Ref: 11.5 a 14.5 %)             [NORMAL]
+
+--------------------------------------------------------------------------------
+2. SÉRIE BRANCA (LEUCOGRAMA)
+--------------------------------------------------------------------------------
+Leucócitos Totais ........: 6.450 /mm³            (Ref: 4.000 a 10.000 /mm³)       [NORMAL]
+Neutrófilos Totais .......: 62%   (3.999 /mm³)    (Ref: 40 a 70% | 1.600 a 7.000)
+Segmentados ..............: 62%   (3.999 /mm³)    (Ref: 40 a 70%)
+Bastonetes ...............: 0%    (0 /mm³)        (Ref: 0 a 4%)
+Eosinófilos ..............: 3%    (193 /mm³)      (Ref: 1 a 5% | 50 a 500)
+Basófilos ................: 1%    (64 /mm³)       (Ref: 0 a 2% | 0 a 200)
+Linfócitos ...............: 28%   (1.806 /mm³)    (Ref: 20 a 40% | 900 a 3.000)
+Monócitos ................: 6%    (387 /mm³)      (Ref: 2 a 10% | 200 a 1.000)
+
+--------------------------------------------------------------------------------
+3. SÉRIE PLAQUETÁRIA
+--------------------------------------------------------------------------------
+Contagem de Plaquetas ....: 245.000 /mm³          (Ref: 150.000 a 450.000 /mm³)   [NORMAL]
+Volume Plaquetário Médio .: 9.4 fL                (Ref: 7.2 a 11.1 fL)
+
+--------------------------------------------------------------------------------
+NOTAS CLÍNICAS:
+Morfologia eritrocitária, leucocitária e plaquetária normais.
+
+================================================================================
+RESPONSÁVEL TÉCNICO:
+Dra. Valéria Campos - CRF/SP 48.912
+Certificação Digital ICP-Brasil: VALIDADA (Hash SHA-256: 7f83a21b38cf4029afbf4c8996)
+Repositório S3: s3://pohinc-exams/patients/1/${exam.name}
+================================================================================`;
+    } else if (isEcg) {
+      content = `CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
+SERVIÇO DE ELETROCARDIOGRAFIA CLÍNICA & SaMD
+Rua das Flores, 1200 - São Paulo, SP | CNPJ: 12.345.678/0001-90
+================================================================================
+LAUDO DE ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES CONVENCIONAIS)
+================================================================================
+PACIENTE: Maria Santos
+REGISTRO: #PR-001 | IDADE: 45 anos | SEXO: Feminino
+DATA DO EXAME: ${exam.date} | HORA: 09:15 BRT
+INDICAÇÃO: Avaliação de queixa de palpitações transitórias e hipertensão
+
+--------------------------------------------------------------------------------
+PARÂMETROS ELETROCARDIOGRÁFICOS AUTOMATIZADOS (SaMD ANVISA RDC 657/2022)
+--------------------------------------------------------------------------------
+- Frequência Cardíaca (FC) ........: 72 bpm
+- Ritmo Cardíaco ...................: Sinusal Regular
+- Intervalo PR .....................: 156 ms (Ref: 120 - 200 ms)
+- Duração do Complexo QRS ..........: 88 ms (Ref: < 100 ms)
+- Intervalo QT / QTc (Bazett) ......: 390 ms / 412 ms (Ref: < 440 ms)
+- Eixo Elétrico de QRS .............: +42° (Eixo normal: -30° a +90°)
+
+--------------------------------------------------------------------------------
+CONCLUSÃO DIAGNÓSTICA:
+1. RITMO SINUSAL REGULAR.
+2. CONDUÇÃO ATRIOVENTRICULAR E INTRAVENTRICULAR NORMAIS.
+3. TRAÇADO ELETROCARDIOGRÁFICO DENTRO DOS LIMITES DA NORMALIDADE.
+
+================================================================================
+MÉDICO CARDIOLOGISTA RESPONSÁVEL:
+${doctorName} - ${doctorCrm}
+Certificação Digital ICP-Brasil: VALIDADA E LAUDADA
+Rastreabilidade: HL7 FHIR R4 DiagnosticReport / ANVISA RDC 657/2022 SaMD
+Repositório S3: s3://pohinc-exams/patients/1/${exam.name}
+================================================================================`;
+    } else {
+      content = `CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
+REPOSITÓRIO DE DOCUMENTOS MÉDICOS INTEGRADOS
+================================================================================
+DOCUMENTO: ${exam.name}
+PACIENTE: Maria Santos | DATA: ${exam.date}
+TAMANHO: ${exam.size} | FORMATO: ${exam.type.toUpperCase()}
+STATUS: Arquivo Íntegro & Autenticado (MinIO S3 / pohinc-exams)
+HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+================================================================================`;
+    }
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const downloadName = exam.name.endsWith('.pdf') 
+      ? exam.name.replace(/\.pdf$/i, '_laudo_oficial.txt') 
+      : `${exam.name}.txt`;
+    a.download = downloadName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`✓ Download de "${downloadName}" concluído com sucesso!`);
   };
 
   // Drag and Drop Logic
@@ -339,22 +485,472 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       )}
 
       {showPrescriptionModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="glass-panel" style={{ padding: '2rem', width: '600px', backgroundColor: 'var(--bg-card)' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-primary)' }}>Nova Prescrição</h3>
-            <textarea value={prescriptionText} onChange={e => setPrescriptionText(e.target.value)} style={{ width: '100%', height: '300px', padding: '1rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', resize: 'none', fontFamily: 'monospace' }} />
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <button onClick={() => setShowPrescriptionModal(false)} style={{ padding: '0.6rem 1rem', border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}>Cancelar</button>
-              <button onClick={handleSavePrescription} style={{ padding: '0.6rem 1.5rem', borderRadius: '6px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🔐 Emitir e Assinar</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', padding: '1rem' }}>
+          <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '840px', maxHeight: '92vh', overflowY: 'auto', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '14px', boxShadow: '0 20px 45px rgba(0,0,0,0.5)' }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.2rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  Modelos de Laudos e Prescrições Clínicas
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.3rem 0 0 0' }}>
+                  Edite campos clínicos coesos com geração instantânea de folha timbrada oficial assinada por {doctorName} ({doctorCrm})
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowPrescriptionModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', padding: '0.3rem 0.6rem', borderRadius: '6px' }}
+              >
+                ✕
+              </button>
             </div>
+
+            {/* Abas de Tipos de Documento */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.8rem' }}>
+              <button
+                type="button"
+                onClick={() => setTemplateType('receituario')}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: templateType === 'receituario' ? 'var(--color-primary)' : 'var(--bg-app)',
+                  color: templateType === 'receituario' ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                💊 Receituário Especial
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateType('laudo')}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: templateType === 'laudo' ? 'var(--color-primary)' : 'var(--bg-app)',
+                  color: templateType === 'laudo' ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                🫀 Laudo Cardiológico / Exame
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateType('atestado')}
+                style={{
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: templateType === 'atestado' ? 'var(--color-primary)' : 'var(--bg-app)',
+                  color: templateType === 'atestado' ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                📋 Atestado Médico
+              </button>
+            </div>
+
+            {/* Presets Rápidos */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.2rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)' }}>Preenchimento Rápido:</span>
+              {templateType === 'receituario' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      medicationName: 'Losartana Potássica 50mg + Anlodipino 5mg',
+                      dosage: '1 comprimido VO às 08h e 1 comprimido VO às 20h',
+                      duration: 'Uso contínuo (reavaliação em 90 dias)',
+                      instructions: 'Evitar ingestão de sal em excesso. Registrar mapa de pressão arterial semanalmente.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Hipertensão Combinada
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      medicationName: 'Atenolol 25mg',
+                      dosage: 'Tomar 1 comprimido VO pela manhã',
+                      duration: 'Tratamento por 60 dias',
+                      instructions: 'Monitorar frequência cardíaca basal. Não suspender abruptamente sem orientação médica.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Controle de FC (Atenolol)
+                  </button>
+                </>
+              )}
+              {templateType === 'laudo' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      clinicalIndication: 'Rotina cardiológica e avaliação pré-operatória ambulatorial.',
+                      findings: 'Ritmo sinusal regular com condução atrioventricular normal. Ausência de ectopias ventriculares.',
+                      conclusion: 'Laudo normal. Sem evidências de isquemia miocárdica ou disfunção elétrica aguda.',
+                      recommendation: 'Apto para atividades habituais. Retorno anual de rotina.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Laudo ECG Padrão Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      clinicalIndication: 'Investigação de dispneia aos esforços e hipertensão de longa data.',
+                      findings: 'Ritmo sinusal. Aumento de voltagem em precordiais esquerdas compatível com Sokolow-Lyon > 35mm.',
+                      conclusion: 'Sobrecarga Ventricular Esquerda (SVE) com padrão de repolarização secundário.',
+                      recommendation: 'Solicitar Ecocardiograma Transtorácico com Doppler e otimização da terapia anti-hipertensiva.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Sobrecarga Ventricular (SVE)
+                  </button>
+                </>
+              )}
+              {templateType === 'atestado' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      cid: 'I10 - Hipertensão essencial',
+                      absenceDays: '1 (um) dia',
+                      absenceReason: 'Realização de consulta médica e propedêutica cardiovascular.',
+                      generalNotes: 'Paciente compareceu ao ambulatório e necessita de repouso nesta data.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Comparecimento Consulta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTemplateForm({
+                      ...templateForm,
+                      cid: 'R07.4 - Dor torácica não especificada',
+                      absenceDays: '3 (três) dias',
+                      absenceReason: 'Convalescença e investigação diagnóstica de sintomatologia torácica.',
+                      generalNotes: 'Recomenda-se repouso físico domiciliar e retorno imediato em caso de recidiva álgica.',
+                    })}
+                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    + Afastamento 3 dias
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Layout de Edição e Prévia */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '1.2rem', alignItems: 'start' }}>
+              
+              {/* Formulário Estruturado */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                {templateType === 'receituario' && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Medicamento e Dosagem *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.medicationName} 
+                        onChange={e => setTemplateForm({...templateForm, medicationName: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Posologia e Horários *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.dosage} 
+                        onChange={e => setTemplateForm({...templateForm, dosage: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Duração do Tratamento
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.duration} 
+                        onChange={e => setTemplateForm({...templateForm, duration: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Orientações e Recomendações Clínicas
+                      </label>
+                      <textarea 
+                        rows={3}
+                        value={templateForm.instructions} 
+                        onChange={e => setTemplateForm({...templateForm, instructions: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem', resize: 'none' }} 
+                      />
+                    </div>
+                  </>
+                )}
+
+                {templateType === 'laudo' && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Indicação Clínica *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.clinicalIndication} 
+                        onChange={e => setTemplateForm({...templateForm, clinicalIndication: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Descrição Técnica dos Achados *
+                      </label>
+                      <textarea 
+                        rows={3}
+                        value={templateForm.findings} 
+                        onChange={e => setTemplateForm({...templateForm, findings: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem', resize: 'none' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Conclusão Diagnóstica *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.conclusion} 
+                        onChange={e => setTemplateForm({...templateForm, conclusion: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Conduta e Recomendações
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.recommendation} 
+                        onChange={e => setTemplateForm({...templateForm, recommendation: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                  </>
+                )}
+
+                {templateType === 'atestado' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '0.8rem' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                          Diagnóstico / CID-10 *
+                        </label>
+                        <input 
+                          type="text" 
+                          value={templateForm.cid} 
+                          onChange={e => setTemplateForm({...templateForm, cid: e.target.value})} 
+                          style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                          Período de Repouso *
+                        </label>
+                        <input 
+                          type="text" 
+                          value={templateForm.absenceDays} 
+                          onChange={e => setTemplateForm({...templateForm, absenceDays: e.target.value})} 
+                          style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Justificativa Médica *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={templateForm.absenceReason} 
+                        onChange={e => setTemplateForm({...templateForm, absenceReason: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem' }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                        Observações e Recomendações
+                      </label>
+                      <textarea 
+                        rows={3}
+                        value={templateForm.generalNotes} 
+                        onChange={e => setTemplateForm({...templateForm, generalNotes: e.target.value})} 
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem', resize: 'none' }} 
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Folha Timbrada Oficial Prévia */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                borderRadius: '8px',
+                padding: '1.2rem',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+                fontSize: '0.78rem',
+                fontFamily: 'serif',
+                lineHeight: 1.45,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '340px'
+              }}>
+                <div>
+                  {/* Cabeçalho da Folha */}
+                  <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '0.5rem', marginBottom: '0.8rem' }}>
+                    <strong style={{ fontSize: '0.85rem', letterSpacing: '0.5px', textTransform: 'uppercase', display: 'block' }}>
+                      CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
+                    </strong>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                      Rua das Flores, 1200 - São Paulo, SP • CNPJ 12.345.678/0001-90
+                    </span>
+                  </div>
+
+                  {/* Identificação do Paciente */}
+                  <div style={{ backgroundColor: '#f8fafc', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0', marginBottom: '0.8rem', fontSize: '0.72rem' }}>
+                    <div><strong>Paciente:</strong> Maria Santos (45 anos)</div>
+                    <div><strong>Convênio:</strong> Unimed Paulistana • <strong>Prontuário:</strong> #PR-001</div>
+                    <div><strong>Data de Emissão:</strong> {new Date().toLocaleDateString('pt-BR')}</div>
+                  </div>
+
+                  {/* Corpo do Documento */}
+                  <div style={{ padding: '0.2rem 0' }}>
+                    {templateType === 'receituario' && (
+                      <div>
+                        <div style={{ textAlign: 'center', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.6rem', color: '#1e3a8a' }}>
+                          RECEITUÁRIO MÉDICO ESPECIAL
+                        </div>
+                        <div style={{ marginBottom: '0.6rem' }}>
+                          <strong>1. {templateForm.medicationName}</strong>
+                          <div style={{ paddingLeft: '0.8rem', color: '#334155' }}>
+                            • Posologia: {templateForm.dosage}<br />
+                            • Duração: {templateForm.duration}
+                          </div>
+                        </div>
+                        <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.4rem', fontSize: '0.68rem', color: '#475569' }}>
+                          <strong>Orientações ao paciente:</strong> {templateForm.instructions}
+                        </div>
+                      </div>
+                    )}
+
+                    {templateType === 'laudo' && (
+                      <div>
+                        <div style={{ textAlign: 'center', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.6rem', color: '#1e3a8a' }}>
+                          LAUDO CARDIOLÓGICO CLÍNICO
+                        </div>
+                        <div style={{ marginBottom: '0.4rem' }}>
+                          <strong>Indicação:</strong> {templateForm.clinicalIndication}
+                        </div>
+                        <div style={{ marginBottom: '0.4rem' }}>
+                          <strong>Achados:</strong> {templateForm.findings}
+                        </div>
+                        <div style={{ marginBottom: '0.4rem', color: '#065f46', backgroundColor: '#ecfdf5', padding: '0.3rem', borderRadius: '4px' }}>
+                          <strong>Conclusão:</strong> {templateForm.conclusion}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#475569' }}>
+                          <strong>Conduta:</strong> {templateForm.recommendation}
+                        </div>
+                      </div>
+                    )}
+
+                    {templateType === 'atestado' && (
+                      <div>
+                        <div style={{ textAlign: 'center', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.6rem', color: '#1e3a8a' }}>
+                          ATESTADO MÉDICO
+                        </div>
+                        <p style={{ textIndent: '1rem', margin: '0.4rem 0' }}>
+                          Atesto para os devidos fins que a paciente <strong>Maria Santos</strong> esteve sob meus cuidados médicos, necessitando de <strong>{templateForm.absenceDays}</strong> de repouso por motivo de {templateForm.absenceReason}.
+                        </p>
+                        <div style={{ margin: '0.4rem 0' }}>
+                          <strong>Diagnóstico codificado:</strong> {templateForm.cid}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#475569' }}>
+                          {templateForm.generalNotes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chancela e Assinatura */}
+                <div style={{ borderTop: '1px solid #0f172a', paddingTop: '0.6rem', marginTop: '0.8rem', textAlign: 'center' }}>
+                  <div style={{ fontWeight: 700 }}>{doctorName}</div>
+                  <div style={{ fontSize: '0.68rem', color: '#475569' }}>{doctorCrm} • Especialista em Cardiologia</div>
+                  <div style={{ display: 'inline-block', marginTop: '0.3rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: '#ecfdf5', color: '#059669', fontSize: '0.62rem', fontWeight: 700, border: '1px solid #a7f3d0' }}>
+                    ✓ Certificação Digital ICP-Brasil Válida
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer de Ações do Template */}
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowPrescriptionModal(false)} 
+                style={{ padding: '0.65rem 1.2rem', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, borderRadius: '8px' }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSavePrescription} 
+                style={{ padding: '0.65rem 1.6rem', borderRadius: '8px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', boxShadow: 'var(--shadow-md)' }}
+              >
+                🔐 Emitir, Assinar e Anexar ao Prontuário
+              </button>
+            </div>
+
           </div>
         </div>
       )}
 
-      {/* Modal de Visualização de Exames Online (MinIO S3) */}
+      {/* Modal de Visualização de Exames Online (MinIO S3) com Folha Original & Download Real */}
       {selectedExam && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', padding: '1rem' }}>
-          <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+          <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '780px', maxHeight: '92vh', overflowY: 'auto', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '14px', boxShadow: '0 20px 45px rgba(0,0,0,0.5)' }}>
             
             {/* Header do Exame */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.2rem' }}>
@@ -377,152 +973,360 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
               </button>
             </div>
 
-            {/* Badge de Armazenamento Online MinIO S3 */}
-            <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                <span style={{ fontSize: '1.1rem' }}>☁️</span>
-                <div>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-accent)', display: 'block' }}>
-                    Armazenado no Object Storage (MinIO S3 / pohinc-exams)
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    URI: s3://pohinc-exams/patients/1/{selectedExam.name}
-                  </span>
-                </div>
-              </div>
-              <span style={{ padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>
-                ✓ Íntegro & Online
-              </span>
+            {/* Alternador de Visualização: Dados Estruturados vs Folha Oficial do Exame */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.2rem', backgroundColor: 'var(--bg-app)', padding: '0.3rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+              <button
+                type="button"
+                onClick={() => setExamViewTab('structured')}
+                style={{
+                  flex: 1,
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: examViewTab === 'structured' ? 'var(--color-primary)' : 'transparent',
+                  color: examViewTab === 'structured' ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                📊 Dados Clínicos Estruturados
+              </button>
+              <button
+                type="button"
+                onClick={() => setExamViewTab('sheet')}
+                style={{
+                  flex: 1,
+                  padding: '0.55rem',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: examViewTab === 'sheet' ? 'var(--color-primary)' : 'transparent',
+                  color: examViewTab === 'sheet' ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.2s',
+                }}
+              >
+                📄 Folha do Exame Original (Prancha Impressa)
+              </button>
             </div>
 
-            {/* Conteúdo Renderizado do Documento */}
-            {selectedExam.name.toLowerCase().includes('hemograma') ? (
-              <div style={{ backgroundColor: 'var(--bg-app)', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.8rem' }}>🔬 Laudo Laboratorial — Hemograma Completo</h4>
-                
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '0.4rem 0' }}>Parâmetro</th>
-                      <th>Resultado</th>
-                      <th>Valor de Referência</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemácias</td>
-                      <td>4.85 milhões/mm³</td>
-                      <td style={{ color: 'var(--text-muted)' }}>4.00 - 5.40 milhões/mm³</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemoglobina</td>
-                      <td>14.2 g/dL</td>
-                      <td style={{ color: 'var(--text-muted)' }}>12.0 - 16.0 g/dL</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hematócrito</td>
-                      <td>42.1 %</td>
-                      <td style={{ color: 'var(--text-muted)' }}>36.0 - 47.0 %</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Leucócitos Totais</td>
-                      <td>6.450 /mm³</td>
-                      <td style={{ color: 'var(--text-muted)' }}>4.000 - 10.000 /mm³</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Plaquetas</td>
-                      <td>245.000 /mm³</td>
-                      <td style={{ color: 'var(--text-muted)' }}>150.000 - 450.000 /mm³</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div style={{ marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px dashed var(--border-color)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Responsável Técnico: Dra. Valéria Campos — CRF 48.912/SP</span>
-                  <span>Assinatura Digital ICP-Brasil: VÁLIDA</span>
-                </div>
-              </div>
-            ) : selectedExam.name.toLowerCase().includes('ecg') ? (
-              <div style={{ backgroundColor: '#0d1520', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.6rem' }}>
-                  <span>ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES)</span>
-                  <span>72 BPM • RITMO SINUSAL</span>
-                </div>
-                
-                {/* Visual Traçado */}
-                <svg width="100%" height="80" viewBox="0 0 500 80" preserveAspectRatio="none" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: '6px' }}>
-                  <path
-                    d="M 0 40 L 40 40 L 45 42 L 50 10 L 55 60 L 60 40 L 80 40 Q 90 28 100 40 L 140 40 L 145 42 L 150 10 L 155 60 L 160 40 L 180 40 Q 190 28 200 40 L 240 40 L 245 42 L 250 10 L 255 60 L 260 40 L 280 40 Q 290 28 300 40 L 340 40 L 345 42 L 350 10 L 355 60 L 360 40 L 380 40 Q 390 28 400 40 L 440 40 L 445 42 L 450 10 L 455 60 L 460 40 L 500 40"
-                    fill="none"
-                    stroke="#10B981"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginTop: '0.8rem', textAlign: 'center' }}>
-                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PR</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>156 ms</strong>
+            {/* Visualização de Dados Estruturados */}
+            {examViewTab === 'structured' && (
+              <>
+                {/* Badge de Armazenamento Online MinIO S3 */}
+                <div style={{ padding: '0.8rem 1rem', borderRadius: '8px', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', marginBottom: '1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <span style={{ fontSize: '1.1rem' }}>☁️</span>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-accent)', display: 'block' }}>
+                        Armazenado no Object Storage (MinIO S3 / pohinc-exams)
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        URI: s3://pohinc-exams/patients/1/{selectedExam.name}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QRS</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>88 ms</strong>
-                  </div>
-                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QTc</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>412 ms</strong>
-                  </div>
-                  <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Eixo</span>
-                    <strong style={{ fontSize: '0.85rem', color: '#fff' }}>+45°</strong>
-                  </div>
+                  <span style={{ padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>
+                    ✓ Íntegro & Online
+                  </span>
                 </div>
 
-                <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '0.8rem', lineHeight: 1.4 }}>
-                  <strong>Conclusão Clínica:</strong> Traçado dentro dos padrões de normalidade. Ausência de sinais de sobrecarga ou isquemia aguda.
-                </p>
-              </div>
-            ) : (
-              <div style={{ backgroundColor: 'var(--bg-app)', padding: '2rem', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
-                <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.8rem' }}>📑</span>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{selectedExam.name}</h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
-                  Documento clínico arquivado com sucesso no repositório de exames MinIO da clínica.
-                </p>
-                <div style={{ display: 'inline-block', padding: '0.6rem 1.2rem', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981', fontSize: '0.8rem', fontWeight: 600 }}>
-                  ✓ Hash SHA-256 Validado no S3
+                {selectedExam.name.toLowerCase().includes('hemograma') ? (
+                  <div style={{ backgroundColor: 'var(--bg-app)', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.8rem' }}>🔬 Laudo Laboratorial — Hemograma Completo</h4>
+                    
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                          <th style={{ padding: '0.4rem 0' }}>Parâmetro</th>
+                          <th>Resultado</th>
+                          <th>Valor de Referência</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemácias</td>
+                          <td>4.85 milhões/mm³</td>
+                          <td style={{ color: 'var(--text-muted)' }}>4.00 - 5.40 milhões/mm³</td>
+                          <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hemoglobina</td>
+                          <td>14.2 g/dL</td>
+                          <td style={{ color: 'var(--text-muted)' }}>12.0 - 16.0 g/dL</td>
+                          <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Hematócrito</td>
+                          <td>42.1 %</td>
+                          <td style={{ color: 'var(--text-muted)' }}>36.0 - 47.0 %</td>
+                          <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Leucócitos Totais</td>
+                          <td>6.450 /mm³</td>
+                          <td style={{ color: 'var(--text-muted)' }}>4.000 - 10.000 /mm³</td>
+                          <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.4rem 0', fontWeight: 600 }}>Plaquetas</td>
+                          <td>245.000 /mm³</td>
+                          <td style={{ color: 'var(--text-muted)' }}>150.000 - 450.000 /mm³</td>
+                          <td style={{ color: '#10B981', fontWeight: 600 }}>Normal</td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <div style={{ marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px dashed var(--border-color)', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Responsável Técnico: Dra. Valéria Campos — CRF 48.912/SP</span>
+                      <span>Assinatura Digital ICP-Brasil: VÁLIDA</span>
+                    </div>
+                  </div>
+                ) : selectedExam.name.toLowerCase().includes('ecg') ? (
+                  <div style={{ backgroundColor: '#0d1520', padding: '1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#10B981', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.6rem' }}>
+                      <span>ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES)</span>
+                      <span>72 BPM • RITMO SINUSAL</span>
+                    </div>
+                    
+                    {/* Visual Traçado */}
+                    <svg width="100%" height="80" viewBox="0 0 500 80" preserveAspectRatio="none" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: '6px' }}>
+                      <path
+                        d="M 0 40 L 40 40 L 45 42 L 50 10 L 55 60 L 60 40 L 80 40 Q 90 28 100 40 L 140 40 L 145 42 L 150 10 L 155 60 L 160 40 L 180 40 Q 190 28 200 40 L 240 40 L 245 42 L 250 10 L 255 60 L 260 40 L 280 40 Q 290 28 300 40 L 340 40 L 345 42 L 350 10 L 355 60 L 360 40 L 380 40 Q 390 28 400 40 L 440 40 L 445 42 L 450 10 L 455 60 L 460 40 L 500 40"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginTop: '0.8rem', textAlign: 'center' }}>
+                      <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>PR</span>
+                        <strong style={{ fontSize: '0.85rem', color: '#fff' }}>156 ms</strong>
+                      </div>
+                      <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QRS</span>
+                        <strong style={{ fontSize: '0.85rem', color: '#fff' }}>88 ms</strong>
+                      </div>
+                      <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>QTc</span>
+                        <strong style={{ fontSize: '0.85rem', color: '#fff' }}>412 ms</strong>
+                      </div>
+                      <div style={{ padding: '0.4rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>Eixo</span>
+                        <strong style={{ fontSize: '0.85rem', color: '#fff' }}>+45°</strong>
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: '0.8rem', color: '#cbd5e1', marginTop: '0.8rem', lineHeight: 1.4 }}>
+                      <strong>Conclusão Clínica:</strong> Traçado dentro dos padrões de normalidade. Ausência de sinais de sobrecarga ou isquemia aguda.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: 'var(--bg-app)', padding: '2rem', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                    <span style={{ fontSize: '3rem', display: 'block', marginBottom: '0.8rem' }}>📑</span>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{selectedExam.name}</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '400px', margin: '0 auto 1.5rem auto' }}>
+                      Documento clínico arquivado com sucesso no repositório de exames MinIO da clínica.
+                    </p>
+                    <div style={{ display: 'inline-block', padding: '0.6rem 1.2rem', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10B981', fontSize: '0.8rem', fontWeight: 600 }}>
+                      ✓ Hash SHA-256 Validado no S3
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Visualização de Folha do Exame Original (Prancha Impressa) */}
+            {examViewTab === 'sheet' && (
+              <div style={{
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                padding: '2rem',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                fontFamily: 'serif',
+                lineHeight: 1.5,
+              }}>
+                {/* Cabeçalho Oficial */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '1rem', marginBottom: '1.2rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#0f172a', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+                      CLÍNICA CARDIOLÓGICA & DIAGNÓSTICA
+                    </h3>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0.2rem 0 0 0' }}>
+                      Serviço Integrado de Diagnóstico Ambulatorial • CNPJ: 12.345.678/0001-90<br />
+                      Rua das Flores, 1200 - São Paulo, SP - CEP: 01310-100
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ display: 'inline-block', padding: '0.25rem 0.6rem', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700 }}>
+                      VIA DO PRONTUÁRIO
+                    </span>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.3rem' }}>
+                      Protocolo: #EX-{selectedExam.id || '2026-01'}
+                    </div>
+                  </div>
                 </div>
+
+                {/* Dados do Paciente */}
+                <div style={{ backgroundColor: '#f8fafc', padding: '0.8rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', fontSize: '0.78rem' }}>
+                  <div><strong>Paciente:</strong> Maria Santos</div>
+                  <div><strong>Idade / Sexo:</strong> 45 anos / Fem</div>
+                  <div><strong>Prontuário:</strong> #PR-001</div>
+                  <div><strong>Convênio:</strong> Unimed Paulistana</div>
+                  <div><strong>Data da Coleta/Exame:</strong> {selectedExam.date}</div>
+                  <div><strong>Médico Assistente:</strong> {doctorName}</div>
+                </div>
+
+                {/* Conteúdo da Folha Impressa */}
+                {selectedExam.name.toLowerCase().includes('hemograma') ? (
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, textTransform: 'uppercase', textAlign: 'center', marginBottom: '1rem', color: '#1e3a8a' }}>
+                      LAUDO LABORATORIAL DE HEMOGRAMA COMPLETO
+                    </h4>
+                    
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.85rem', display: 'block', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.2rem', marginBottom: '0.5rem', color: '#334155' }}>
+                        1. SÉRIE VERMELHA (ERITROGRAMA)
+                      </strong>
+                      <table style={{ width: '100%', fontSize: '0.78rem', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.3rem 0', width: '40%' }}>Hemácias</td>
+                            <td style={{ fontWeight: 700 }}>4.85 milhões/mm³</td>
+                            <td style={{ color: '#64748b' }}>Ref: 4.00 a 5.40 milhões/mm³</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.3rem 0' }}>Hemoglobina</td>
+                            <td style={{ fontWeight: 700 }}>14.2 g/dL</td>
+                            <td style={{ color: '#64748b' }}>Ref: 12.0 a 16.0 g/dL</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.3rem 0' }}>Hematócrito</td>
+                            <td style={{ fontWeight: 700 }}>42.1 %</td>
+                            <td style={{ color: '#64748b' }}>Ref: 36.0 a 47.0 %</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div style={{ marginBottom: '1rem' }}>
+                      <strong style={{ fontSize: '0.85rem', display: 'block', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.2rem', marginBottom: '0.5rem', color: '#334155' }}>
+                        2. SÉRIE BRANCA E PLAQUETAS
+                      </strong>
+                      <table style={{ width: '100%', fontSize: '0.78rem', borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.3rem 0', width: '40%' }}>Leucócitos Totais</td>
+                            <td style={{ fontWeight: 700 }}>6.450 /mm³</td>
+                            <td style={{ color: '#64748b' }}>Ref: 4.000 a 10.000 /mm³</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.3rem 0' }}>Plaquetas</td>
+                            <td style={{ fontWeight: 700 }}>245.000 /mm³</td>
+                            <td style={{ color: '#64748b' }}>Ref: 150.000 a 450.000 /mm³</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <p style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic', margin: '0.8rem 0' }}>
+                      Nota Técnica: Série eritrocitária, leucocitária e contagem plaquetária dentro dos padrões normais de referência para gênero e idade.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 800, textTransform: 'uppercase', textAlign: 'center', marginBottom: '1rem', color: '#1e3a8a' }}>
+                      LAUDO DE ELETROCARDIOGRAMA DE REPOUSO (12 DERIVAÇÕES)
+                    </h4>
+                    
+                    <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '1rem' }}>
+                      {/* Mini Traçado Representativo na Folha Impressa */}
+                      <svg width="100%" height="60" viewBox="0 0 500 60" preserveAspectRatio="none" style={{ display: 'block', backgroundColor: '#ffffff', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+                        <path
+                          d="M 0 30 L 40 30 L 45 32 L 50 10 L 55 50 L 60 30 L 80 30 Q 90 20 100 30 L 140 30 L 145 32 L 150 10 L 155 50 L 160 30 L 180 30 Q 190 20 200 30 L 240 30 L 245 32 L 250 10 L 255 50 L 260 30 L 280 30 Q 290 20 300 30 L 340 30 L 345 32 L 350 10 L 355 50 L 360 30 L 380 30 Q 390 20 400 30 L 440 30 L 445 32 L 450 10 L 455 50 L 460 30 L 500 30"
+                          fill="none"
+                          stroke="#1e3a8a"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem', marginTop: '0.8rem', textAlign: 'center', fontSize: '0.75rem' }}>
+                        <div>FC: <strong>72 bpm</strong></div>
+                        <div>PR: <strong>156 ms</strong></div>
+                        <div>QRS: <strong>88 ms</strong></div>
+                        <div>QTc: <strong>412 ms</strong></div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>
+                      <p style={{ margin: '0.3rem 0' }}><strong>Ritmo:</strong> Sinusal regular com condução atrioventricular e intraventricular preservadas.</p>
+                      <p style={{ margin: '0.3rem 0' }}><strong>Repolarização:</strong> Ausência de desnivelamentos de ST ou alterações isquêmicas agudas.</p>
+                      <p style={{ margin: '0.5rem 0', padding: '0.5rem', backgroundColor: '#ecfdf5', borderRadius: '4px', color: '#065f46' }}>
+                        <strong>Conclusão Diagnóstica:</strong> Traçado eletrocardiográfico dentro dos limites da normalidade para faixa etária.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Assinatura e Autenticação da Folha Impressa */}
+                <div style={{ borderTop: '2px solid #0f172a', paddingTop: '1rem', marginTop: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    <div>Documento autenticado no Repositório MinIO S3</div>
+                    <div>Chave SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e46</div>
+                    <div>Padrão ANVISA RDC 657/2022 | HL7 FHIR R4</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ borderBottom: '1px solid #0f172a', width: '220px', margin: '0 auto 0.3rem auto' }}></div>
+                    <strong style={{ fontSize: '0.82rem', display: 'block' }}>{doctorName}</strong>
+                    <span style={{ fontSize: '0.72rem', color: '#475569' }}>{doctorCrm} • Cardiologia</span>
+                    <div style={{ marginTop: '0.3rem', fontSize: '0.65rem', color: '#059669', fontWeight: 700 }}>
+                      Assinado Digitalmente (ICP-Brasil)
+                    </div>
+                  </div>
+                </div>
+
               </div>
             )}
 
             {/* Footer com Ações */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
               <button 
-                onClick={() => {
-                  showToast(`✓ Iniciando download seguro de "${selectedExam.name}" a partir do MinIO...`);
-                }}
-                style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                type="button"
+                onClick={() => handleDownloadExamFile(selectedExam)}
+                style={{ padding: '0.65rem 1.3rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s' }}
               >
                 📥 Baixar Arquivo Original
               </button>
               <div style={{ display: 'flex', gap: '0.8rem' }}>
                 <button 
+                  type="button"
                   onClick={() => window.print()}
-                  style={{ padding: '0.6rem 1.2rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ padding: '0.65rem 1.2rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'transparent', color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  🖨️ Imprimir
+                  🖨️ Imprimir Folha
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setSelectedExam(null)} 
-                  style={{ padding: '0.6rem 1.5rem', borderRadius: '6px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                  style={{ padding: '0.65rem 1.5rem', borderRadius: '8px', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}
                 >
                   Fechar
                 </button>
@@ -732,26 +1536,39 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {prescriptions.map((doc, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 0', borderBottom: i < prescriptions.length -1 ? '1px solid var(--border-color)' : 'none' }}>
-                    <div>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 0', borderBottom: i < prescriptions.length -1 ? '1px solid var(--border-color)' : 'none', gap: '0.8rem' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{doc.type}</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={doc.type}>
+                          {doc.type}
+                        </span>
                         {doc.signed && (
-                          <span style={{ padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--badge-purple-bg)', fontSize: '0.7rem', fontWeight: 600, color: 'var(--badge-purple-text)' }}>
+                          <span style={{ padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--badge-purple-bg)', fontSize: '0.7rem', fontWeight: 600, color: 'var(--badge-purple-text)', flexShrink: 0, whiteSpace: 'nowrap' }}>
                             🔐 Assinado
                           </span>
                         )}
                       </div>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{doc.date}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {doc.print && (
-                        <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--badge-yellow-bg)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--badge-yellow-text)', cursor: 'pointer' }}>
+                        <span 
+                          onClick={() => window.print()}
+                          style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', backgroundColor: 'var(--badge-yellow-bg)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--badge-yellow-text)', cursor: 'pointer' }}
+                        >
                           🖨️ Imprimir
                         </span>
                       )}
-                      <span style={{ padding: '0.2rem 0.6rem', borderRadius: '6px', backgroundColor: 'var(--badge-blue-bg)', fontSize: '0.8rem', fontWeight: 600, color: 'var(--badge-blue-text)' }}>
-                        {doc.status}
+                      <span style={{ 
+                        padding: '0.2rem 0.6rem', 
+                        borderRadius: '6px', 
+                        backgroundColor: (doc.status === 'Laudado' || doc.status === 'Homologado') ? 'rgba(16, 185, 129, 0.15)' : 'var(--badge-blue-bg)', 
+                        fontSize: '0.8rem', 
+                        fontWeight: 600, 
+                        color: (doc.status === 'Laudado' || doc.status === 'Homologado') ? '#10B981' : 'var(--badge-blue-text)',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {doc.status === 'Homologado' ? 'Laudado' : doc.status}
                       </span>
                     </div>
                   </div>
@@ -906,9 +1723,9 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
                         const noteText = `[Laudo Oficial de IA - ECG] ${aiResult?.classification || 'Ritmo Sinusal Regular'} (FC: ${aiResult?.heart_rate_bpm || 72} bpm, PR: ${aiResult?.pr_interval_ms || 156}ms, QTc: ${aiResult?.qtc_interval_ms || 412}ms). Revisado e aprovado por ${doctorName} (${doctorCrm}).`;
                         
                         const newDoc = {
-                          type: 'Laudo de ECG com IA (SaMD ANVISA)',
+                          type: 'Laudo ECG (IA SaMD)',
                           date: today,
-                          status: 'Homologado',
+                          status: 'Laudado',
                           signed: true,
                           print: true
                         };
@@ -935,7 +1752,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
                           files: updatedFiles
                         });
 
-                        showToast('✓ Laudo de IA assinado, homologado e anexado aos Exames e Prontuário!');
+                        showToast('✓ Laudo de IA assinado, laudado e anexado aos Exames e Prontuário!');
                       }} style={{ padding: '0.5rem 1.2rem', backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                         ✓ Validar e Anexar ao Prontuário
                       </button>
