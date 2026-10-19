@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Filter, MoreVertical, Globe, CheckCircle2, ShieldCheck, AlertCircle, X, Loader2 } from 'lucide-react';
 import { useTheme } from '../../components/ThemeProvider';
+import PatientAvatar from '../../components/PatientAvatar';
 
 interface PatientItem {
   id: string;
@@ -21,6 +22,7 @@ interface PatientItem {
 
 const INITIAL_PATIENTS: PatientItem[] = [
   { id: '1', name: 'Maria Santos', age: 45, gender: 'Feminino', lastVisit: '10/04/2026', status: 'Ativo', cpf: '123.456.789-00', phone: '(11) 99123-4567', email: 'maria.santos@email.com', insurance: 'Unimed Paulistana' },
+  { id: 'pat-amanda', name: 'Amanda Silva Castro', age: 36, gender: 'Feminino', lastVisit: 'Hoje', status: 'Ativo', cpf: '123.456.789-99', phone: '(11) 99123-4567', email: 'amanda.silva@email.com', insurance: 'Unimed Paulistana', importedFromCentral: true },
   { id: '2', name: 'Carlos Eduardo Oliveira', age: 52, gender: 'Masculino', lastVisit: '08/04/2026', status: 'Em Tratamento', cpf: '234.567.890-11', phone: '(11) 98765-4321', email: 'carlos.eduardo@email.com', insurance: 'Bradesco Saúde' },
   { id: '3', name: 'Ana Beatriz Lima', age: 29, gender: 'Feminino', lastVisit: '12/03/2026', status: 'Alta', cpf: '345.678.901-22', phone: '(11) 97654-3210', email: 'ana.lima@email.com', insurance: 'SulAmérica' },
   { id: '4', name: 'Roberto Ferreira Costa', age: 61, gender: 'Masculino', lastVisit: '01/05/2026', status: 'Ativo', cpf: '456.789.012-33', phone: '(11) 96543-2109', email: 'roberto.costa@email.com', insurance: 'Amil' },
@@ -178,10 +180,11 @@ export default function PatientsPage() {
     if (!newPatientForm.name.trim()) return;
 
     const newId = String(Date.now());
+    const fallbackCpf = `123.456.789-${Math.floor(10 + Math.random() * 89)}`;
     const newPatient: PatientItem = {
       id: newId,
       name: newPatientForm.name.trim(),
-      cpf: newPatientForm.cpf.trim() || '123.456.789-99',
+      cpf: newPatientForm.cpf.trim() || fallbackCpf,
       age: parseInt(newPatientForm.age) || 38,
       phone: newPatientForm.phone.trim() || '(11) 99123-4567',
       email: newPatientForm.email.trim() || `${newPatientForm.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com`,
@@ -213,6 +216,9 @@ export default function PatientsPage() {
           name: newPatient.name,
           cpf: newPatient.cpf,
           birth_date: '1988-05-15',
+          gender: newPatient.gender,
+          phone: newPatient.phone,
+          email: newPatient.email,
           address: 'São Paulo - SP',
           created_at: new Date().toISOString()
         })
@@ -349,14 +355,17 @@ export default function PatientsPage() {
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-app)'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <td style={{ padding: '1rem', fontWeight: 600 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {p.name}
-                    {p.importedFromCentral && (
-                      <span title="Prontuário integrado via HL7 FHIR R4">
-                        <ShieldCheck size={16} color="var(--color-primary)" />
-                      </span>
-                    )}
+                <td style={{ padding: '0.85rem 1rem', fontWeight: 600 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <PatientAvatar name={p.name} size={38} gender={p.gender} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>{p.name}</span>
+                      {p.importedFromCentral && (
+                        <span title="Prontuário integrado via HL7 FHIR R4">
+                          <ShieldCheck size={16} color="var(--color-primary)" />
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>

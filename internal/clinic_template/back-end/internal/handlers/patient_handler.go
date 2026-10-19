@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -48,10 +49,41 @@ func CreatePatientHandler(c *gin.Context) {
 	input.CreatedAt = time.Now()
 	input.UpdatedAt = time.Now()
 
-	if err := database.DB.Create(&input).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao cadastrar paciente: " + err.Error()})
-		return
+	// Trata duplicação de CPF localmente de forma idempotente
+	var existing models.Patient
+	if err := database.DB.Where("cpf = ?", input.CPF).First(&existing).Error; err == nil {
+		input.ID = existing.ID
+		database.DB.Model(&existing).Updates(input)
+	} else {
+		if err := database.DB.Create(&input).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao cadastrar paciente: " + err.Error()})
+			return
+		}
 	}
+
+	// Sincroniza com o barramento centralizador Open Health POHINC
+	go func(pat models.Patient) {
+		centralURL := os.Getenv("CENTRAL_BUS_URL")
+		if centralURL == "" {
+			centralURL = "http://localhost:8002"
+		}
+		centralBase := strings.TrimSuffix(centralURL, "/api/exams/ingest")
+		centralBase = strings.TrimSuffix(centralBase, "/api/exams")
+		centralBase = strings.TrimSuffix(centralBase, "/")
+
+		syncPayload, _ := json.Marshal(map[string]interface{}{
+			"id":         "pat-" + pat.ID,
+			"name":       pat.Name,
+			"cpf":        pat.CPF,
+			"birth_date": pat.BirthDate,
+			"email":      pat.Email,
+			"phone":      pat.Phone,
+			"gender":     pat.Gender,
+		})
+
+		client := &http.Client{Timeout: 4 * time.Second}
+		_, _ = client.Post(centralBase+"/api/patients/sync", "application/json", bytes.NewBuffer(syncPayload))
+	}(input)
 
 	c.JSON(http.StatusCreated, input)
 }
@@ -114,7 +146,7 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 	}
 
 	// 2. Tenta buscar o Bundle FHIR do paciente no Centralizador
-	fhirURL := fmt.Sprintf("%s/api/patients/%s/hl7-fhir", centralBase, centralPatientID)
+	fhirURL := fmt.Sprintf("%s/api/patients/%s/fhir-bundle", centralBase, centralPatientID)
 	fhirResp, fhirErr := client.Get(fhirURL)
 
 	var fhirBundle struct {
@@ -181,15 +213,28 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 
 				resID, _ := res["id"].(string)
 
+				// Evita duplicatas se já foi importado
+				var existing models.MedicalRecord
+				if err := database.DB.Where("fhir_resource_id = ? OR (patient_id = ? AND diagnosis = ?)", resID, localPatient.ID, title).First(&existing).Error; err == nil {
+					continue
+				}
+
+				parsedDate := time.Now()
+				if dtStr, ok := res["effectiveDateTime"].(string); ok && dtStr != "" {
+					if t, err := time.Parse(time.RFC3339, dtStr); err == nil {
+						parsedDate = t
+					}
+				}
+
 				// Cria prontuário histórico local
 				record := models.MedicalRecord{
 					ID:             uuid.New().String(),
 					PatientID:      localPatient.ID,
 					DoctorID:       "federated-doctor",
 					DoctorName:     provider,
-					Date:           time.Now().Add(-48 * time.Hour),
+					Date:           parsedDate,
 					Diagnosis:      title,
-					Prescription:   "Histórico importado via FHIR DiagnosticReport",
+					Prescription:   conclusion,
 					Notes:          conclusion,
 					FHIRResourceID: resID,
 					CreatedAt:      time.Now(),
@@ -199,23 +244,6 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 				recordsImported++
 			}
 		}
-	} else {
-		// Mock demonstrativo de pluralidade prévia de outra clínica (ex: Clínica Sorriso)
-		prevRecord := models.MedicalRecord{
-			ID:             uuid.New().String(),
-			PatientID:      localPatient.ID,
-			DoctorID:       "dr-sorriso-external",
-			DoctorName:     "Clínica Sorriso (Parceira POHINC)",
-			Date:           time.Now().Add(-72 * time.Hour),
-			Diagnosis:      "Eletrocardiograma de Triagem Lead II",
-			Prescription:   "Enalapril 10mg / Manter acompanhamento cardiológico",
-			Notes:          "Traçado sinusal regular. Ausência de bloqueios ou arritmias. (Importado via Barramento FHIR)",
-			FHIRResourceID: "diag-sorriso-101",
-			CreatedAt:      time.Now().Add(-72 * time.Hour),
-			UpdatedAt:      time.Now().Add(-72 * time.Hour),
-		}
-		database.DB.Create(&prevRecord)
-		recordsImported = 1
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Phone, Mail, MapPin } from 'lucide-react';
 import { useTheme } from '../../components/ThemeProvider';
+import PatientAvatar from '../../components/PatientAvatar';
 
 interface PatientItem {
   id: string;
@@ -148,20 +149,7 @@ export default function AssistantPatientsPage() {
             }}>
               {/* Top: Avatar + Name */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-                <div style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--badge-blue-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-accent)' }}>
-                    {patient.name.charAt(0)}
-                  </span>
-                </div>
+                <PatientAvatar name={patient.name} size={46} gender={patient.gender} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {patient.name}

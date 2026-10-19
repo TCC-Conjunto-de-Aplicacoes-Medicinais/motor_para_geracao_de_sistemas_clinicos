@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import PatientAvatar from '../../components/PatientAvatar';
 
 const MOCK_HISTORY = [
   {
@@ -59,10 +60,32 @@ type FilterType = 'Todos' | 'Consulta' | 'Retorno' | 'Exame';
 
 export default function HistoryPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
+  const [historyItems, setHistoryItems] = useState(MOCK_HISTORY);
+
+  useEffect(() => {
+    fetch('http://localhost:8081/api/records')
+      .then(res => res.json())
+      .then((records: any[]) => {
+        if (Array.isArray(records) && records.length > 0) {
+          const mapped = records.map((r, idx) => ({
+            id: r.id || String(idx),
+            date: r.date ? new Date(r.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'Hoje',
+            time: r.date ? new Date(r.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '10:00',
+            patient: r.patient_name || 'Paciente',
+            type: (r.record_type || 'Consulta') as any,
+            duration: '30 min',
+            status: 'concluído' as const,
+            summary: r.title ? `${r.title} — ${r.diagnosis || r.prescription || 'Atendimento registrado.'}` : (r.diagnosis || 'Atendimento clínico registrado no banco local'),
+          }));
+          setHistoryItems([...mapped, ...MOCK_HISTORY]);
+        }
+      })
+      .catch(err => console.warn('Aviso ao carregar prontuários da API da clínica:', err));
+  }, []);
 
   const filteredHistory = activeFilter === 'Todos'
-    ? MOCK_HISTORY
-    : MOCK_HISTORY.filter(h => h.type === activeFilter);
+    ? historyItems
+    : historyItems.filter(h => h.type === activeFilter);
 
   const filters: FilterType[] = ['Todos', 'Consulta', 'Retorno', 'Exame'];
 
@@ -184,20 +207,7 @@ export default function HistoryPage() {
 
                   {/* Patient + type */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                    <div style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--badge-blue-bg)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-accent)' }}>
-                        {entry.patient.charAt(0)}
-                      </span>
-                    </div>
+                    <PatientAvatar name={entry.patient} size={36} />
                     <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       {entry.patient}
                     </span>

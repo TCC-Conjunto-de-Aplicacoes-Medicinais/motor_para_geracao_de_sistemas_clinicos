@@ -66,7 +66,15 @@ func CreateRecordHandler(c *gin.Context) {
 func dispatchFHIRRecord(record models.MedicalRecord) {
 	centralBusURL := os.Getenv("CENTRAL_BUS_URL")
 	if centralBusURL == "" {
-		centralBusURL = "http://localhost:8002/api/exams"
+		centralBusURL = "http://localhost:8002/api/exams/ingest"
+	}
+
+	patientCPF := ""
+	patientName := ""
+	var pat models.Patient
+	if err := database.DB.Where("id = ?", record.PatientID).First(&pat).Error; err == nil {
+		patientCPF = pat.CPF
+		patientName = pat.Name
 	}
 
 	fhirPayload := map[string]interface{}{
@@ -83,8 +91,13 @@ func dispatchFHIRRecord(record models.MedicalRecord) {
 			},
 			"text": record.Diagnosis,
 		},
-		"subject": map[string]string{
+		"subject": map[string]interface{}{
 			"reference": "Patient/" + record.PatientID,
+			"display":   patientName,
+			"identifier": map[string]string{
+				"system": "urn:oid:2.16.76.4.1",
+				"value":  patientCPF,
+			},
 		},
 		"performer": []map[string]string{
 			{
@@ -96,9 +109,11 @@ func dispatchFHIRRecord(record models.MedicalRecord) {
 		"conclusion":        record.Diagnosis + " - Conduta: " + record.Prescription,
 		"notes":             record.Notes,
 		"meta": map[string]string{
-			"clinic_id": os.Getenv("CLINIC_ID"),
-			"standard":  "HL7-FHIR-R4",
-			"custody":   "DPoP-LGPD",
+			"clinic_id":    os.Getenv("CLINIC_ID"),
+			"standard":     "HL7-FHIR-R4",
+			"custody":      "DPoP-LGPD",
+			"patient_cpf":  patientCPF,
+			"patient_name": patientName,
 		},
 	}
 

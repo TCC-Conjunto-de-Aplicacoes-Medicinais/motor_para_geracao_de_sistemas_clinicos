@@ -54,12 +54,28 @@ export default function Navbar() {
             alt={clinicName} 
             style={{ 
               height: '38px', 
-              maxWidth: '120px', 
+              maxWidth: '140px', 
               objectFit: 'contain', 
               borderRadius: '6px' 
             }} 
           />
-        ) : null}
+        ) : (
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: '1rem',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+          }}>
+            ✚
+          </div>
+        )}
         <h1 className="clinic-logo" style={{ fontSize: '1.2rem', fontWeight: 700 }}>
           {clinicName}
         </h1>

@@ -465,23 +465,6 @@ func getEnvInt(key string, defaultVal int) int {
 	return defaultVal
 }
 
-func sanitizeName(name string) string {
-	lower := strings.ToLower(name)
-	var sb strings.Builder
-	for _, r := range lower {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			sb.WriteRune(r)
-		} else {
-			sb.WriteRune('-')
-		}
-	}
-	res := strings.Trim(sb.String(), "-")
-	if res == "" {
-		return "clinica"
-	}
-	return res
-}
-
 func getTerraformOutputs(workDir string, envVars []string, env string) (string, string) {
 	cmd := exec.Command("terraform", "output", "-json")
 	cmd.Dir = workDir

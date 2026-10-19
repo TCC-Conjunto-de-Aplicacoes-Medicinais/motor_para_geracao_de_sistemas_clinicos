@@ -46,7 +46,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const [config, setConfig] = useState<any>(null);
 
   useEffect(() => {
-    fetch('/clinic.config.json')
+    fetch('/clinic.config.json?v=' + Date.now(), { cache: 'no-store' })
       .then((res) => res.json())
       .then((cfg) => {
         setConfig(cfg);
