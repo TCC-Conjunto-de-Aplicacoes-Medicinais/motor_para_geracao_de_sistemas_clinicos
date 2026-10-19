@@ -394,11 +394,11 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 		}
 		frontDir = absTemplate
 	} else {
-		// Para clínicas secundárias, conecta node_modules via Junction no Windows para economia de espaço e subida instantânea
+		// Para clínicas secundárias, copia node_modules via robocopy multi-threaded para evitar conflitos de junctions no Next.js
 		nodeModulesDst := filepath.FromSlash(filepath.Join(frontDir, "node_modules"))
 		nodeModulesSrc := filepath.FromSlash(filepath.Join(absTemplate, "node_modules"))
 		if _, err := os.Stat(nodeModulesDst); os.IsNotExist(err) {
-			_ = exec.Command("cmd", "/C", fmt.Sprintf(`mklink /J "%s" "%s"`, nodeModulesDst, nodeModulesSrc)).Run()
+			_ = exec.Command("cmd", "/C", fmt.Sprintf(`robocopy "%s" "%s" /E /MT:32 /NFL /NDL /NJH /NJS /NC /NS`, nodeModulesSrc, nodeModulesDst)).Run()
 		}
 	}
 
