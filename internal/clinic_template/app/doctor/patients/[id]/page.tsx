@@ -209,6 +209,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       const savedList = localStorage.getItem('clinic_patients_list');
       if (savedList) {
         const parsedList = JSON.parse(savedList);
+        if (Array.isArray(parsedList)) {
           const found = parsedList.find((p: any) => String(p.id) === patientId);
           if (found) {
             const baseDefaults = DEFAULT_PATIENTS[patientId];
