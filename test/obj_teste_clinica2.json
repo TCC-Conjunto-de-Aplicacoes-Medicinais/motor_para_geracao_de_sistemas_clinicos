@@ -1,0 +1,84 @@
+{
+    "createdAt": "2026-10-19T18:00:00.000Z",
+    "id": "c2222222-2222-4222-8222-222222222222",
+    "identity": {
+        "clinicName": "Hospital São Lucas",
+        "logoFile": null,
+        "logoFileName": null,
+        "logoType": "generic",
+        "palette": "blue"
+    },
+    "implementation": {
+        "address": "Av. Ibirapuera, 1200 - São Paulo/SP",
+        "type": "managed"
+    },
+    "modules": {
+        "assistant": {
+            "enabled": true,
+            "features": {
+                "billing": true,
+                "billingCheckControl": true,
+                "checkInOut": true,
+                "doctorScheduleView": true,
+                "insurancePlans": true,
+                "patientManagement": true,
+                "scheduling": true
+            },
+            "scope": "global"
+        },
+        "doctor": {
+            "enabled": true,
+            "features": {
+                "consultationHistory": true,
+                "dashboard": true,
+                "patientList": true,
+                "patientRecord": {
+                    "aiEcg": true,
+                    "allergies": true,
+                    "digitalSignature": true,
+                    "enabled": true,
+                    "fileUpload": true,
+                    "files": true,
+                    "medicationControl": true,
+                    "prescriptionTemplate": true,
+                    "prescriptions": true,
+                    "stampedPrescription": true
+                },
+                "schedule": true
+            }
+        },
+        "management": {
+            "enabled": true,
+            "features": {
+                "attendanceControl": true,
+                "billingByDoctor": true,
+                "billingControl": true,
+                "dashboards": true,
+                "doctorSchedules": true,
+                "staffRegistration": true,
+                "systemCost": true
+            }
+        },
+        "shared": {
+            "settings": true
+        }
+    },
+    "technical": {
+        "deploymentType": "web",
+        "drSecondaryEnv": null,
+        "environment": "local",
+        "estimatedPrice": {
+            "currency": "BRL",
+            "monthly": 1845,
+            "setup": 1490
+        },
+        "hasDisasterRecovery": false,
+        "sizing": {
+            "avgAssistants": 2,
+            "avgDoctors": 8,
+            "maxPatients": 560,
+            "minPatients": 230
+        }
+    },
+    "version": "1.0.0"
+}

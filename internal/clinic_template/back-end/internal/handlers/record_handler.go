@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"clinic-backend/internal/database"
@@ -67,6 +68,8 @@ func dispatchFHIRRecord(record models.MedicalRecord) {
 	centralBusURL := os.Getenv("CENTRAL_BUS_URL")
 	if centralBusURL == "" {
 		centralBusURL = "http://localhost:8002/api/exams/ingest"
+	} else if !strings.HasSuffix(centralBusURL, "/api/exams/ingest") {
+		centralBusURL = strings.TrimSuffix(centralBusURL, "/") + "/api/exams/ingest"
 	}
 
 	patientCPF := ""

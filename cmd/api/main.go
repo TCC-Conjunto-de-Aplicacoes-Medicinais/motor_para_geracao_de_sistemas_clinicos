@@ -94,17 +94,28 @@ func handleGenerateLocal(w http.ResponseWriter, r *http.Request, cfg *config.Con
 		return
 	}
 
-	file, err := os.Open("test/obj_teste.json")
-	if err != nil {
-		http.Error(w, "Arquivo de teste local não encontrado", http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
-
 	var payload models.SystemPayload
-	if err := json.NewDecoder(file).Decode(&payload); err != nil {
-		http.Error(w, "Falha ao parsear obj_teste.json", http.StatusInternalServerError)
-		return
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Falha ao decodificar payload enviado: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else {
+		targetFile := "test/obj_teste.json"
+		if customFile := r.URL.Query().Get("file"); customFile != "" {
+			targetFile = customFile
+		}
+		file, err := os.Open(targetFile)
+		if err != nil {
+			http.Error(w, "Arquivo de teste local não encontrado: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		if err := json.NewDecoder(file).Decode(&payload); err != nil {
+			http.Error(w, "Falha ao parsear payload", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	adminEmail := os.Getenv("AUTHORIZED_ADMIN_EMAIL")
@@ -115,7 +126,7 @@ func handleGenerateLocal(w http.ResponseWriter, r *http.Request, cfg *config.Con
 	result, err := engine.Run(&payload, cfg, adminEmail)
 	if err != nil {
 		log.Printf("[API] Falha na execução do motor local: %v", err)
-		http.Error(w, "Falha ao provisionar infraestrutura local", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Falha ao provisionar infraestrutura local: %v", err), http.StatusInternalServerError)
 		return
 	}
 

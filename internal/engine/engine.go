@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,13 +18,20 @@ import (
 	"github.com/motor-clinicas/internal/models"
 )
 
+type NativeClinicProcesses struct {
+	ClinicID     string
+	BackendCmd   *exec.Cmd
+	FrontendCmd  *exec.Cmd
+	BackendPort  int
+	FrontendPort int
+}
+
 var (
 	activeTimersLock sync.Mutex
 	activeTimers     = make(map[string]*time.Timer)
 
-	nativeClinicMu       sync.Mutex
-	activeClinicBackend  *exec.Cmd
-	activeClinicFrontend *exec.Cmd
+	nativeClinicMu      sync.Mutex
+	activeNativeClinics = make(map[string]*NativeClinicProcesses)
 )
 
 // DefaultAdminEmail é o fallback para o e-mail de administrador caso não definido via AUTHORIZED_ADMIN_EMAIL
@@ -96,14 +104,21 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 	updateStatus(workDir, "provisioning", "Executando cirurgia estática de código...", "", "", "")
 
 	// 4. FASE DE CODE GENERATION (Cirurgia de Código & Injeção de Parâmetros)
-	log.Println("[Engine] Preparando Frontend e executando cirurgia de código...")
-	if err := prepareFrontend(workDir, payload); err != nil {
+	backPort := 8081
+	frontPort := 3001
+	if env == "local" {
+		backPort = allocatePort(8081, []int{8083, 8087, 8089}, payload.ID)
+		frontPort = allocatePort(3001, []int{3003, 3005, 3007}, payload.ID)
+	}
+
+	log.Printf("[Engine] Preparando Frontend e executando cirurgia de código (Porta Front: %d, Porta Back: %d)...", frontPort, backPort)
+	if err := prepareFrontend(workDir, payload, backPort); err != nil {
 		updateStatus(workDir, "failed", "Falha ao preparar frontend", err.Error(), "", "")
 		return nil, fmt.Errorf("falha ao preparar frontend: %v", err)
 	}
 
 	log.Println("[Engine] Preparando Backend e executando cirurgia de código...")
-	if err := prepareBackend(workDir, payload); err != nil {
+	if err := prepareBackend(workDir, payload, backPort); err != nil {
 		updateStatus(workDir, "failed", "Falha ao preparar backend", err.Error(), "", "")
 		return nil, fmt.Errorf("falha ao preparar backend: %v", err)
 	}
@@ -115,7 +130,7 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 		useDocker := isDockerAvailable() && !getEnvBool("LOCAL_FORCE_NATIVE", true)
 		if !useDocker {
 			log.Println("[Engine] ⚡ Modo Sandbox Nativo de Alta Velocidade ativado (Docker indisponível ou bypass ativo).")
-			return provisionNativeLocalSandbox(workDir, payload, isSandbox, sandboxReason)
+			return provisionNativeLocalSandbox(workDir, payload, isSandbox, sandboxReason, backPort, frontPort)
 		}
 	}
 
@@ -264,7 +279,7 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 	activeTimersLock.Unlock()
 
 	if env == "local" {
-		stopNativeProcesses()
+		stopNativeProcessesForClinic(clinicID)
 	}
 
 	workDir := filepath.Join(".", ".states", env, clinicID)
@@ -293,6 +308,10 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 		}
 	}
 
+	if env == "local" {
+		stopNativeProcessesForClinic(clinicID)
+	}
+
 	updateStatus(workDir, "destroyed", "Infraestrutura desprovisionada com sucesso", "", "", "")
 	log.Printf("[Engine] 🗑️ Infraestrutura da clínica %s destruída com sucesso!", clinicID)
 	return nil
@@ -303,45 +322,93 @@ func isDockerAvailable() bool {
 	return cmd.Run() == nil
 }
 
-func stopNativeProcesses() {
+func isPortInUse(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 250*time.Millisecond)
+	if err == nil {
+		conn.Close()
+		return true
+	}
+	return false
+}
+
+func allocatePort(preferred int, alternatives []int, currentClinicID string) int {
 	nativeClinicMu.Lock()
 	defer nativeClinicMu.Unlock()
 
-	if activeClinicBackend != nil && activeClinicBackend.Process != nil {
-		log.Println("[Engine] Encerrando backend nativo anterior...")
-		_ = activeClinicBackend.Process.Kill()
-		activeClinicBackend = nil
-	}
-	if activeClinicFrontend != nil && activeClinicFrontend.Process != nil {
-		log.Println("[Engine] Encerrando frontend nativo anterior...")
-		_ = activeClinicFrontend.Process.Kill()
-		activeClinicFrontend = nil
+	// Se a própria clínica já estiver registrada nesta porta, reutiliza
+	if cp, ok := activeNativeClinics[currentClinicID]; ok {
+		if cp.BackendPort == preferred || cp.FrontendPort == preferred {
+			return preferred
+		}
 	}
 
-	// Garante liberação de portas no Windows
-	_ = exec.Command("powershell", "-Command", "Get-Process -Id (Get-NetTCPConnection -LocalPort 8081 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue").Run()
-	_ = exec.Command("powershell", "-Command", "Get-Process -Id (Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue").Run()
+	if !isPortInUse(preferred) {
+		return preferred
+	}
+	for _, p := range alternatives {
+		if !isPortInUse(p) {
+			return p
+		}
+	}
+	return preferred + 10
 }
 
-func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, isSandbox bool, sandboxReason string) (*ExecutionResult, error) {
+func stopNativeProcessesForClinic(clinicID string) {
+	nativeClinicMu.Lock()
+	defer nativeClinicMu.Unlock()
+
+	if cp, ok := activeNativeClinics[clinicID]; ok {
+		log.Printf("[Engine] Encerrando processos anteriores da clínica %s...", clinicID)
+		if cp.BackendCmd != nil && cp.BackendCmd.Process != nil {
+			_ = cp.BackendCmd.Process.Kill()
+		}
+		if cp.FrontendCmd != nil && cp.FrontendCmd.Process != nil {
+			_ = cp.FrontendCmd.Process.Kill()
+		}
+		if cp.BackendPort > 0 {
+			_ = exec.Command("powershell", "-Command", fmt.Sprintf("Get-Process -Id (Get-NetTCPConnection -LocalPort %d -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue", cp.BackendPort)).Run()
+		}
+		if cp.FrontendPort > 0 {
+			_ = exec.Command("powershell", "-Command", fmt.Sprintf("Get-Process -Id (Get-NetTCPConnection -LocalPort %d -ErrorAction SilentlyContinue).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue", cp.FrontendPort)).Run()
+		}
+		delete(activeNativeClinics, clinicID)
+	}
+}
+
+func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, isSandbox bool, sandboxReason string, backPort, frontPort int) (*ExecutionResult, error) {
 	updateStatus(workDir, "provisioning", "Iniciando Banco de Dados e Backend da Clínica...", "", "", "")
 
-	// 1. Limpar portas e processos anteriores
-	stopNativeProcesses()
+	// 1. Limpar apenas processos anteriores DESTA mesma clínica se houver
+	stopNativeProcessesForClinic(payload.ID)
 
 	absWorkDir, _ := filepath.Abs(workDir)
 	absTemplate, _ := filepath.Abs(filepath.Join("internal", "clinic_template"))
 
-	// 2. Sincronizar o clinic.config.json gerado no diretório base do template
-	configSrc := filepath.Join(absWorkDir, "frontend", "public", "clinic.config.json")
-	configDst := filepath.Join(absTemplate, "public", "clinic.config.json")
-	if data, err := os.ReadFile(configSrc); err == nil {
-		_ = os.WriteFile(configDst, data, 0644)
+	frontDir := filepath.Join(absWorkDir, "frontend")
+	// 2. Se for porta 3001 e porta 3001 não estiver rodando outro processo, sincroniza template base:
+	if frontPort == 3001 && !isPortInUse(3001) {
+		configSrc := filepath.Join(absWorkDir, "frontend", "public", "clinic.config.json")
+		configDst := filepath.Join(absTemplate, "public", "clinic.config.json")
+		if data, err := os.ReadFile(configSrc); err == nil {
+			_ = os.WriteFile(configDst, data, 0644)
+		}
+		frontDir = absTemplate
+	} else {
+		// Para clínicas secundárias, conecta node_modules via Junction no Windows para economia de espaço e subida instantânea
+		nodeModulesDst := filepath.FromSlash(filepath.Join(frontDir, "node_modules"))
+		nodeModulesSrc := filepath.FromSlash(filepath.Join(absTemplate, "node_modules"))
+		if _, err := os.Stat(nodeModulesDst); os.IsNotExist(err) {
+			_ = exec.Command("cmd", "/C", fmt.Sprintf(`mklink /J "%s" "%s"`, nodeModulesDst, nodeModulesSrc)).Run()
+		}
 	}
 
-	// 3. Inicializar Backend em processo nativo (porta 8081 com SQLite)
+	// 3. Inicializar Backend em processo nativo
 	backDir := filepath.Join(absWorkDir, "backend")
 	backExe := filepath.Join(backDir, "api.exe")
+	if _, err := os.Stat(backExe); os.IsNotExist(err) {
+		srcExe := filepath.Join(absTemplate, "back-end", "api.exe")
+		_ = copyFile(srcExe, backExe)
+	}
 	if _, err := os.Stat(backExe); os.IsNotExist(err) {
 		backExe = filepath.Join(absTemplate, "back-end", "api.exe")
 	}
@@ -350,11 +417,12 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 	backCmd := exec.Command(backExe)
 	backCmd.Dir = backDir
 	backCmd.Env = append(os.Environ(),
-		"PORT=8081",
+		fmt.Sprintf("PORT=%d", backPort),
 		"DB_TYPE=sqlite",
 		"SQLITE_PATH="+sqlitePath,
 		"CLINIC_NAME="+payload.Identity.ClinicName,
 		"CLINIC_ID="+payload.ID,
+		"CENTRAL_BUS_URL=http://localhost:8002",
 		"GIN_MODE=release",
 	)
 	backCmd.Stdout = os.Stdout
@@ -365,11 +433,12 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 		backCmd = exec.Command("go", "run", "cmd/api/main.go")
 		backCmd.Dir = backDir
 		backCmd.Env = append(os.Environ(),
-			"PORT=8081",
+			fmt.Sprintf("PORT=%d", backPort),
 			"DB_TYPE=sqlite",
 			"SQLITE_PATH="+sqlitePath,
 			"CLINIC_NAME="+payload.Identity.ClinicName,
 			"CLINIC_ID="+payload.ID,
+			"CENTRAL_BUS_URL=http://localhost:8002",
 			"GIN_MODE=release",
 		)
 		if startErr := backCmd.Start(); startErr != nil {
@@ -378,14 +447,10 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 		}
 	}
 
-	nativeClinicMu.Lock()
-	activeClinicBackend = backCmd
-	nativeClinicMu.Unlock()
-
-	// 4. Inicializar Frontend da Clínica em processo nativo (porta 3001)
-	updateStatus(workDir, "provisioning", "Iniciando Interface Web da Clínica (Next.js)...", "", "", "")
-	frontCmd := exec.Command("cmd", "/C", "npm run dev -- -p 3001")
-	frontCmd.Dir = absTemplate
+	// 4. Inicializar Frontend da Clínica em processo nativo
+	updateStatus(workDir, "provisioning", fmt.Sprintf("Iniciando Interface Web da Clínica (Next.js na porta %d)...", frontPort), "", "", "")
+	frontCmd := exec.Command("cmd", "/C", fmt.Sprintf("npm run dev -- -p %d", frontPort))
+	frontCmd.Dir = frontDir
 	frontCmd.Stdout = os.Stdout
 	frontCmd.Stderr = os.Stderr
 
@@ -394,17 +459,23 @@ func provisionNativeLocalSandbox(workDir string, payload *models.SystemPayload, 
 	}
 
 	nativeClinicMu.Lock()
-	activeClinicFrontend = frontCmd
+	activeNativeClinics[payload.ID] = &NativeClinicProcesses{
+		ClinicID:     payload.ID,
+		BackendCmd:   backCmd,
+		FrontendCmd:  frontCmd,
+		BackendPort:  backPort,
+		FrontendPort: frontPort,
+	}
 	nativeClinicMu.Unlock()
 
-	clinicURL := "http://localhost:3001"
-	healthURL := "http://localhost:8081/health"
+	clinicURL := fmt.Sprintf("http://localhost:%d", frontPort)
+	healthURL := fmt.Sprintf("http://localhost:%d/health", backPort)
 
 	// Aguardar brevemente (1.5s) para subida completa dos daemons locais
 	time.Sleep(1500 * time.Millisecond)
 
 	updateStatus(workDir, "ready", "Infraestrutura ativa e operacional (Sandbox Nativo)", "", clinicURL, healthURL)
-	log.Printf("[Engine] ✅ Clínica %s (%s) operacional em Sandbox Nativo: %s", payload.Identity.ClinicName, payload.ID, clinicURL)
+	log.Printf("[Engine] ✅ Clínica %s (%s) operacional em Sandbox Nativo: %s (Back: %s)", payload.Identity.ClinicName, payload.ID, clinicURL, healthURL)
 
 	resultMessage := "Infraestrutura provisionada com sucesso em Sandbox Local de Alta Resiliência"
 	resultMode := "sandbox"
@@ -502,7 +573,7 @@ func getTerraformOutputs(workDir string, envVars []string, env string) (string, 
 	return clinicURL, healthURL
 }
 
-func prepareFrontend(workDir string, payload *models.SystemPayload) error {
+func prepareFrontend(workDir string, payload *models.SystemPayload, backPort int) error {
 	frontTarget := filepath.Join(workDir, "frontend")
 	frontSource := filepath.Join("internal", "clinic_template")
 
@@ -524,7 +595,7 @@ func prepareFrontend(workDir string, payload *models.SystemPayload) error {
 	payloadBytes, _ := json.Marshal(payload)
 	json.Unmarshal(payloadBytes, &configMap)
 
-	backendUrl := "http://localhost:8081"
+	backendUrl := fmt.Sprintf("http://localhost:%d", backPort)
 	if payload.Technical.Environment != "local" {
 		backendUrl = "/api"
 	}
@@ -570,7 +641,7 @@ CMD ["npm", "run", "start"]
 	return nil
 }
 
-func prepareBackend(workDir string, payload *models.SystemPayload) error {
+func prepareBackend(workDir string, payload *models.SystemPayload, backPort int) error {
 	backTarget := filepath.Join(workDir, "backend")
 	backSource := filepath.Join("internal", "clinic_template", "back-end")
 
@@ -590,7 +661,7 @@ func prepareBackend(workDir string, payload *models.SystemPayload) error {
 
 	port := "8080"
 	if payload.Technical.Environment == "local" {
-		port = "8081"
+		port = strconv.Itoa(backPort)
 	}
 
 	envContent := fmt.Sprintf(`DB_USER=clinic_user
@@ -600,6 +671,7 @@ DB_PORT=3306
 DB_NAME=clinic_%s
 CLINIC_NAME=%s
 PORT=%s
+CENTRAL_BUS_URL=http://localhost:8002
 `, payload.ID, payload.ID, payload.Identity.ClinicName, port)
 
 	if err := os.WriteFile(filepath.Join(backTarget, ".env"), []byte(envContent), 0644); err != nil {
