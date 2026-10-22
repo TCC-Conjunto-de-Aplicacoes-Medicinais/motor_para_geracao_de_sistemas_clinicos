@@ -29,6 +29,7 @@ func main() {
 		&models.Patient{},
 		&models.MedicalRecord{},
 		&models.Appointment{},
+		&models.Medication{},
 	)
 
 	// Seed Initial Data
@@ -73,6 +74,8 @@ func main() {
 		// Prontuários & Laudos (com despacho HL7 FHIR)
 		api.GET("/records", handlers.ListRecordsHandler)
 		api.POST("/records", handlers.CreateRecordHandler)
+		api.GET("/medications", handlers.ListMedicationsHandler)
+		api.POST("/medications", handlers.CreateMedicationHandler)
 
 		// Agendamentos
 		api.GET("/appointments", handlers.ListAppointmentsHandler)

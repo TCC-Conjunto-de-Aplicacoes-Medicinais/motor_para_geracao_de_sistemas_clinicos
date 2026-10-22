@@ -243,6 +243,14 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
     setPatientData(loadedPatient);
 
+    // Medicamentos em uso vêm do banco da clínica (não do navegador).
+    fetch(`${backendUrl || 'http://localhost:8081'}/api/medications?patient_id=${patientId}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: Array<{ name: string; freq: string; since: string }>) => {
+        if (Array.isArray(list)) setMedications(list.map((m) => ({ name: m.name, freq: m.freq, since: m.since })));
+      })
+      .catch(() => {});
+
     // O cadastro do banco da clínica prevalece sobre o fallback local (senão o nome aparece como "Paciente #id").
     fetch(`${backendUrl || 'http://localhost:8081'}/api/patients/${patientId}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -507,6 +515,15 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     persistPatientData({ medications: updatedMeds });
     setShowMedModal(false);
     setMedForm({ name: '', freq: '' });
+
+    // Medicamento gravado no banco da clínica (a lista da tela vem dessa mesma tabela).
+    try {
+      await fetch(`${backendUrl || 'http://localhost:8081'}/api/medications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patient_id: params?.id || '1', name: medName, freq: medFreq }),
+      });
+    } catch {}
 
     // Despacho assíncrono para o Backend local (que repassa via FHIR para o Centralizador)
     try {
