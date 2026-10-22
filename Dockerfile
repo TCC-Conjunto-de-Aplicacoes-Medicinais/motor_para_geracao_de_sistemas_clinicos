@@ -3,8 +3,8 @@
 # 1) Front da clínica gerada (Next.js standalone)
 FROM node:22-alpine AS web
 WORKDIR /src/clinic_template
-COPY internal/clinic_template/package.json internal/clinic_template/package-lock.json ./
-RUN npm ci
+COPY internal/clinic_template/package*.json ./
+RUN npm install --no-audit --no-fund
 COPY internal/clinic_template/ ./
 RUN npm run build
 
