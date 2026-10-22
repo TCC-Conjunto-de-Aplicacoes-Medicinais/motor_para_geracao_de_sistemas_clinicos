@@ -2,68 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import PatientAvatar from '../../components/PatientAvatar';
-
-const MOCK_HISTORY = [
-  {
-    id: '1',
-    date: '13/05',
-    time: '09:15',
-    patient: 'João Pereira',
-    type: 'Consulta',
-    duration: '35 min',
-    status: 'concluído' as const,
-    summary: 'Paciente com queixa de dor lombar crônica. Solicitado ressonância magnética da coluna lombar.',
-  },
-  {
-    id: '2',
-    date: '13/05',
-    time: '10:00',
-    patient: 'Ana Lima',
-    type: 'Exame',
-    duration: '20 min',
-    status: 'concluído' as const,
-    summary: 'Análise de ECG — resultado normal. Orientação sobre hábitos alimentares.',
-  },
-  {
-    id: '3',
-    date: '12/05',
-    time: '08:30',
-    patient: 'Maria Santos',
-    type: 'Retorno',
-    duration: '25 min',
-    status: 'concluído' as const,
-    summary: 'Retorno pós-exame. Resultados dentro da normalidade. Alta do acompanhamento.',
-  },
-  {
-    id: '4',
-    date: '12/05',
-    time: '11:00',
-    patient: 'Carlos Oliveira',
-    type: 'Consulta',
-    duration: '40 min',
-    status: 'cancelado' as const,
-    summary: 'Paciente não compareceu. Reagendado para próxima semana.',
-  },
-  {
-    id: '5',
-    date: '10/05',
-    time: '14:30',
-    patient: 'Fernanda Costa',
-    type: 'Consulta',
-    duration: '30 min',
-    status: 'concluído' as const,
-    summary: 'Primeira consulta — anamnese completa. Solicitado hemograma e glicemia de jejum.',
-  },
-];
+import { useTheme } from '../../components/ThemeProvider';
 
 type FilterType = 'Todos' | 'Consulta' | 'Retorno' | 'Exame';
 
 export default function HistoryPage() {
+  const { backendUrl } = useTheme();
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
-  const [historyItems, setHistoryItems] = useState(MOCK_HISTORY);
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch('http://localhost:8081/api/records')
+    fetch(`${backendUrl || 'http://localhost:8081'}/api/records`)
       .then(res => res.json())
       .then((records: any[]) => {
         if (Array.isArray(records) && records.length > 0) {
@@ -77,11 +26,11 @@ export default function HistoryPage() {
             status: 'concluído' as const,
             summary: r.title ? `${r.title} — ${r.diagnosis || r.prescription || 'Atendimento registrado.'}` : (r.diagnosis || 'Atendimento clínico registrado no banco local'),
           }));
-          setHistoryItems([...mapped, ...MOCK_HISTORY]);
+          setHistoryItems(mapped);
         }
       })
       .catch(err => console.warn('Aviso ao carregar prontuários da API da clínica:', err));
-  }, []);
+  }, [backendUrl]);
 
   const filteredHistory = activeFilter === 'Todos'
     ? historyItems
