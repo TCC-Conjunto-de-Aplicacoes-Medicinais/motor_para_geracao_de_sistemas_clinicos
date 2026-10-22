@@ -49,25 +49,14 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string; details?: string } | null>(null);
 
-  // Busca pacientes locais caso o backend esteja ativo ou carrega do localStorage
+  // O banco da clínica é a fonte da lista; o localStorage só serve de cache quando a API está fora.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('clinic_patients_list');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setPatients(parsed);
-          return;
-        }
-      }
-    } catch {}
-
     async function loadPatients() {
       try {
         const res = await fetch(`${backendUrl}/api/patients`);
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             const mapped: PatientItem[] = data.map((p: any) => ({
               id: p.id,
               name: p.name,
@@ -82,10 +71,11 @@ export default function PatientsPage() {
             return;
           }
         }
-      } catch {
-        // Fallback mantém INITIAL_PATIENTS
-      }
-      localStorage.setItem('clinic_patients_list', JSON.stringify(INITIAL_PATIENTS));
+      } catch {}
+      try {
+        const saved = JSON.parse(localStorage.getItem('clinic_patients_list') || '[]');
+        if (Array.isArray(saved)) setPatients(saved);
+      } catch {}
     }
     loadPatients();
   }, [backendUrl]);
@@ -349,7 +339,7 @@ export default function PatientsPage() {
                   </div>
                 </td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  {p.cpf || '123.456.789-00'}
+                  {p.cpf || '—'}
                 </td>
                 <td style={{ padding: '1rem' }}>{p.age} anos</td>
                 <td style={{ padding: '1rem' }}>{p.lastVisit}</td>

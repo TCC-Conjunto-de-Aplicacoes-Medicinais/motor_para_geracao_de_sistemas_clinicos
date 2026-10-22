@@ -157,8 +157,11 @@ func seedPatients(db *gorm.DB) {
 }
 
 func seedAppointments(db *gorm.DB) {
+	// Repõe a amostra quando não há consulta de hoje em diante, para o painel do dia não ficar vazio.
 	var count int64
-	db.Model(&models.Appointment{}).Count(&count)
+	today := time.Now()
+	startOfToday := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+	db.Model(&models.Appointment{}).Where("date_time >= ?", startOfToday).Count(&count)
 	if count == 0 {
 		now := time.Now()
 		// Horários base de hoje
@@ -272,7 +275,9 @@ func seedAppointments(db *gorm.DB) {
 			},
 		}
 
+		day := now.Format("20060102")
 		for _, a := range baseAppointments {
+			a.ID = a.ID + "-" + day // ID por dia: a amostra pode ser reposta em outro dia
 			db.Create(&a)
 		}
 		log.Println("[Seed] Agendamentos base inseridos com sucesso no banco de dados!")

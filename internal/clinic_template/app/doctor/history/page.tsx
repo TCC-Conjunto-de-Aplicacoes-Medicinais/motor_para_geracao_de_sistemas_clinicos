@@ -10,11 +10,29 @@ export default function HistoryPage() {
   const { backendUrl } = useTheme();
   const [activeFilter, setActiveFilter] = useState<FilterType>('Todos');
   const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [stats, setStats] = useState({ week: 0, month: 0, cancelled: 0 });
 
   useEffect(() => {
-    fetch(`${backendUrl || 'http://localhost:8081'}/api/records`)
+    const base = backendUrl || 'http://localhost:8081';
+    fetch(`${base}/api/appointments`)
+      .then(res => (res.ok ? res.json() : []))
+      .then((list: any[]) => {
+        if (Array.isArray(list)) setStats(s => ({ ...s, cancelled: list.filter(a => a.status === 'cancelled').length }));
+      })
+      .catch(() => {});
+
+    fetch(`${base}/api/records`)
       .then(res => res.json())
       .then((records: any[]) => {
+        if (Array.isArray(records)) {
+          const now = new Date();
+          const week = records.filter(r => r.date && now.getTime() - new Date(r.date).getTime() < 7 * 86400000).length;
+          const month = records.filter(r => {
+            const d = new Date(r.date);
+            return r.date && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          }).length;
+          setStats(s => ({ ...s, week, month }));
+        }
         if (Array.isArray(records) && records.length > 0) {
           const mapped = records.map((r, idx) => ({
             id: r.id || String(idx),
@@ -74,9 +92,9 @@ export default function HistoryPage() {
       {/* Stats */}
       <div style={{ display: 'flex', gap: '1.5rem' }}>
         {[
-          { label: 'Esta semana', value: '12', color: 'var(--color-accent)' },
-          { label: 'Este mês', value: '47', color: 'var(--color-primary)' },
-          { label: 'Cancelados', value: '3', color: '#EF4444' },
+          { label: 'Esta semana', value: String(stats.week), color: 'var(--color-accent)' },
+          { label: 'Este mês', value: String(stats.month), color: 'var(--color-primary)' },
+          { label: 'Cancelados', value: String(stats.cancelled), color: '#EF4444' },
         ].map(stat => (
           <div key={stat.label} className="glass-panel" style={{ flex: 1, padding: '1.5rem' }}>
             <span style={{ fontSize: '2rem', fontWeight: 800, color: stat.color, lineHeight: 1 }}>

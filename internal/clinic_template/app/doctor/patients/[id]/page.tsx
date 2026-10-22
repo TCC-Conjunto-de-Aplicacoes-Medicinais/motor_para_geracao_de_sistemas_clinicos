@@ -197,7 +197,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       try {
         const parsed = JSON.parse(savedRecords);
         if (Array.isArray(parsed.notes)) setNotes(parsed.notes);
-        if (Array.isArray(parsed.medications)) setMedications(parsed.medications);
+        if (Array.isArray(parsed.files)) setFiles(parsed.files);
         if (Array.isArray(parsed.prescriptions)) setPrescriptions(parsed.prescriptions);
         if (parsed.aiResult) {
           setAiResult(parsed.aiResult);
@@ -207,82 +207,6 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         console.error('Erro ao parsear dados do paciente:', e);
       }
     }
-
-    // Dados iniciais dinâmicos por paciente (base limpa para sincronização com SQLite/Cassandra)
-    let defaultNotes = [
-      { date: '10/04/2026', text: 'Paciente relatou melhora com medicação atual. Manter acompanhamento mensal.' },
-      { date: '15/03/2026', text: 'Solicitado ECG de urgência — dor torácica recorrente nas últimas 2 semanas.' }
-    ];
-    let defaultMeds = [
-      { name: 'Losartana Potássica 50mg', freq: '1 comp. 12/12h', since: 'Jan/2026' },
-      { name: 'Espironolactona 25mg', freq: '1 comp. manhã', since: 'Fev/2026' }
-    ];
-    let defaultFiles: any[] = [];
-    let defaultPrescriptions = [
-      { type: 'Laudo Cardiológico', date: '10/04/2026', status: 'Laudado', signed: true, print: false },
-      { type: 'Receituário', date: '15/03/2026', status: 'Emitido', signed: true, print: true }
-    ];
-
-    if (patientId === '2') {
-      defaultNotes = [
-        { date: '08/04/2026', text: 'Retorno pós-angioplastia coronária. Relata boa tolerância aos exercícios leves. PA: 125x82 mmHg.' },
-        { date: '10/02/2026', text: 'Solicitado ecocardiograma transtorácico e perfil lipídico de controle.' }
-      ];
-      defaultMeds = [
-        { name: 'Carvedilol 12.5mg', freq: '2x/dia', since: 'Fev/2026' },
-        { name: 'Atorvastatina 40mg', freq: '1x/noite', since: 'Jan/2026' },
-        { name: 'AAS 100mg', freq: '1x/dia', since: 'Jan/2026' }
-      ];
-      defaultFiles = [
-        { id: 'f1', name: 'Ecocardiograma_Transtoracico.pdf', date: '08/04/2026', size: '512 KB', type: 'pdf' },
-        { id: 'f2', name: 'Perfil_Lipidico.pdf', date: '10/02/2026', size: '180 KB', type: 'pdf' }
-      ];
-      defaultPrescriptions = [
-        { type: 'Receituário Especial', date: '08/04/2026', status: 'Emitido', signed: true, print: true }
-      ];
-    } else if (patientId === '3') {
-      defaultNotes = [
-        { date: '12/03/2026', text: 'Avaliação cardiológica de rotina pré-atividade física. Sem sintomas cardiovasculares. ECG em ritmo sinusal.' }
-      ];
-      defaultMeds = [
-        { name: 'Suplementação Vitamina D 2000UI', freq: '1x/dia', since: 'Mar/2026' }
-      ];
-      defaultFiles = [
-        { id: 'f1', name: 'Eletrocardiograma_Rotina.pdf', date: '12/03/2026', size: '780 KB', type: 'pdf' },
-        { id: 'f2', name: 'Checkup_Geral.pdf', date: '12/03/2026', size: '320 KB', type: 'pdf' }
-      ];
-      defaultPrescriptions = [
-        { type: 'Atestado Médico', date: '12/03/2026', status: 'Emitido', signed: true, print: false }
-      ];
-    } else if (patientId === '4') {
-      defaultNotes = [
-        { date: '01/05/2026', text: 'Acompanhamento de hipertensão arterial sistêmica. Queixa de tosse com enalapril anterior, trocado por losartana.' },
-        { date: '10/01/2026', text: 'Introduzido anlodipino 5mg para controle pressórico noturno.' }
-      ];
-      defaultMeds = [
-        { name: 'Losartana 50mg', freq: '1x/dia', since: 'Nov/2025' },
-        { name: 'Anlodipino 5mg', freq: '1x/dia', since: 'Jan/2026' }
-      ];
-      defaultFiles = [
-        { id: 'f1', name: 'MAPA_24h.pdf', date: '01/05/2026', size: '1.4 MB', type: 'pdf' },
-        { id: 'f2', name: 'Creatinina_Ureia.pdf', date: '10/01/2026', size: '190 KB', type: 'pdf' }
-      ];
-      defaultPrescriptions = [
-        { type: 'Laudo Cardiológico', date: '01/05/2026', status: 'Laudado', signed: true, print: true }
-      ];
-    } else if (patientId !== '1') {
-      defaultNotes = [
-        { date: new Date().toLocaleDateString('pt-BR'), text: `Primeiro atendimento clínico ambulatorial registrado para ${loadedPatient.name}. Anamnese inicial e acolhimento.` }
-      ];
-      defaultMeds = [];
-      defaultFiles = [];
-      defaultPrescriptions = [];
-    }
-
-    setNotes(defaultNotes);
-    setMedications(defaultMeds);
-    setFiles(defaultFiles);
-    setPrescriptions(defaultPrescriptions);
 
     // Helper para identificar exames reais (excluindo prescrições e anotações clínicas)
     // Sincroniza em tempo real com registros e exames persistidos no SQLite da clínica
@@ -333,14 +257,6 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         }
       })
       .catch((e) => console.warn('Aviso ao carregar registros locais:', e));
-
-    localStorage.setItem(patientStorageKey, JSON.stringify({
-      notes: defaultNotes,
-      medications: defaultMeds,
-      files: defaultFiles,
-      prescriptions: defaultPrescriptions,
-      aiResult: null
-    }));
   }, [params?.id]);
 
   // Função central de persistência
@@ -517,7 +433,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cpf: patientData.cpf || '123.456.789-00',
+          cpf: patientData.cpf,
           token_otp: '123456'
         })
       });
@@ -1698,7 +1614,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
               </div>
             </div>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              CPF: {patientData.cpf || '123.456.789-00'} • {patientData.age} anos • {patientData.gender} • {patientData.specialty}
+              CPF: {patientData.cpf || '—'} • {patientData.age} anos • {patientData.gender} • {patientData.specialty}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
