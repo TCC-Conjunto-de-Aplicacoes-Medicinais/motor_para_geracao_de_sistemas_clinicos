@@ -61,6 +61,8 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
   const [medications, setMedications] = useState<Array<{ name: string; freq: string; since: string }>>([]);
   const [allergies, setAllergies] = useState<string[]>([]);
+  const [bloodType, setBloodType] = useState('');
+  const [infoDraft, setInfoDraft] = useState<{ phone: string; email: string; insurance: string; bloodType: string; allergies: string } | null>(null);
   const [files, setFiles] = useState<Array<{ id: string; name: string; date: string; size: string; type: string }>>([]);
   const [prescriptions, setPrescriptions] = useState<Array<{ type: string; date: string; status: string; signed: boolean; print: boolean }>>([]);
 
@@ -173,7 +175,10 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
           phone: p.phone || prev.phone,
           email: p.email || prev.email,
           gender: p.gender || prev.gender,
+          insurance: p.insurance || prev.insurance,
         }));
+        setBloodType(p.blood_type || '');
+        setAllergies(p.allergies ? p.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : []);
       })
       .catch(() => {});
 
@@ -348,6 +353,33 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       } catch (err) {
         console.warn('Aviso ao sincronizar exame anexado com centralizador:', err);
       }
+    }
+  };
+
+  // Salva o cadastro no banco da clínica; o envio ao centralizador acontece no próprio backend.
+  const saveInfo = async () => {
+    if (!infoDraft) return;
+    const list = infoDraft.allergies.split(',').map((a) => a.trim()).filter(Boolean);
+    try {
+      const res = await fetch(`${backendUrl}/api/patients/${params?.id || '1'}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: infoDraft.phone,
+          email: infoDraft.email,
+          insurance: infoDraft.insurance,
+          blood_type: infoDraft.bloodType,
+          allergies: list.join(', '),
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setPatientData((prev) => ({ ...prev, phone: infoDraft.phone, email: infoDraft.email, insurance: infoDraft.insurance }));
+      setBloodType(infoDraft.bloodType);
+      setAllergies(list);
+      setInfoDraft(null);
+      showToast('✓ Cadastro salvo no banco da clínica e enviado ao centralizador.');
+    } catch (e) {
+      showToast('✗ Não foi possível salvar o cadastro.');
     }
   };
 
@@ -1678,14 +1710,33 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                 { label: 'Email', value: patientData.email },
                 { label: 'CPF', value: patientData.cpf },
                 { label: 'Convênio', value: patientData.insurance },
+                { label: 'Tipo sanguíneo', value: bloodType },
                 { label: 'Última consulta', value: patientData.lastVisit }
               ].map(f => (
                 <div key={f.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{f.label}</span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{f.value}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>{f.value || '—'}</span>
                 </div>
               ))}
             </div>
+            {infoDraft ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                {([['phone', 'Telefone'], ['email', 'Email'], ['insurance', 'Convênio'], ['bloodType', 'Tipo sanguíneo (ex.: O+)'], ['allergies', 'Alergias (separadas por vírgula)']] as const).map(([key, label]) => (
+                  <input key={key} placeholder={label} value={infoDraft[key]}
+                    onChange={(e) => setInfoDraft({ ...infoDraft, [key]: e.target.value })}
+                    style={{ padding: '0.5rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-app)', color: 'var(--text-primary)' }} />
+                ))}
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setInfoDraft(null)} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)', cursor: 'pointer' }}>Cancelar</button>
+                  <button onClick={saveInfo} style={{ padding: '0.4rem 0.9rem', borderRadius: '6px', background: 'var(--color-primary)', border: 'none', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Salvar</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setInfoDraft({ phone: patientData.phone, email: patientData.email, insurance: patientData.insurance, bloodType, allergies: allergies.join(', ') })}
+                style={{ marginTop: '1rem', padding: '0.3rem 0.8rem', borderRadius: '6px', backgroundColor: 'var(--badge-blue-bg)', border: 'none', color: 'var(--badge-blue-text)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
+                Editar informações
+              </button>
+            )}
           </section>
 
           {/* Allergies */}
@@ -1693,6 +1744,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
             <section className="glass-panel" style={{ padding: '1.2rem', backgroundColor: 'var(--bg-card)' }}>
               <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>⚠️ Alergias</h2>
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {allergies.length === 0 && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nenhuma alergia registrada.</span>}
                 {allergies.map(a => (
                   <div key={a} style={{ padding: '0.3rem 0.8rem', borderRadius: '6px', backgroundColor: 'var(--badge-red-bg)' }}>
                     <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--badge-red-text)' }}>{a}</span>

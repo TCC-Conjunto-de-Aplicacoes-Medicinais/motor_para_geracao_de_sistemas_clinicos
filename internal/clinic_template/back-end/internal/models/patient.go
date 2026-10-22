@@ -13,6 +13,9 @@ type Patient struct {
 	Phone     string    `json:"phone" gorm:"type:varchar(30)"`
 	Email     string    `json:"email" gorm:"type:varchar(150)"`
 	Address   string    `json:"address" gorm:"type:text"`
+	Insurance string    `json:"insurance" gorm:"type:varchar(120)"`
+	BloodType string    `json:"blood_type" gorm:"type:varchar(10)"`
+	Allergies string    `json:"allergies" gorm:"type:text"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

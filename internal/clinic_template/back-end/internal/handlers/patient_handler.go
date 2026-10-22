@@ -43,6 +43,9 @@ type updatePatientRequest struct {
 	Phone     *string `json:"phone"`
 	Email     *string `json:"email"`
 	Address   *string `json:"address"`
+	Insurance *string `json:"insurance"`
+	BloodType *string `json:"blood_type"`
+	Allergies *string `json:"allergies"`
 }
 
 // UpdatePatientHandler altera só os campos enviados, para que a edição do cadastro fique gravada no banco da clínica.
@@ -77,11 +80,21 @@ func UpdatePatientHandler(c *gin.Context) {
 	if req.Address != nil {
 		patient.Address = strings.TrimSpace(*req.Address)
 	}
+	if req.Insurance != nil {
+		patient.Insurance = strings.TrimSpace(*req.Insurance)
+	}
+	if req.BloodType != nil {
+		patient.BloodType = strings.TrimSpace(*req.BloodType)
+	}
+	if req.Allergies != nil {
+		patient.Allergies = strings.TrimSpace(*req.Allergies)
+	}
 
 	if err := database.DB.Save(&patient).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao salvar paciente"})
 		return
 	}
+	go pushPatientToCentral(patient)
 	c.JSON(http.StatusOK, patient)
 }
 
@@ -111,31 +124,7 @@ func CreatePatientHandler(c *gin.Context) {
 	}
 
 	// Sincroniza com o barramento centralizador Open Health POHINC
-	go func(pat models.Patient) {
-		centralURL := os.Getenv("CENTRAL_BUS_URL")
-		if centralURL == "" {
-			centralURL = "http://localhost:8002"
-		}
-		centralBase := strings.TrimSuffix(centralURL, "/api/exams/ingest")
-		centralBase = strings.TrimSuffix(centralBase, "/api/exams")
-		centralBase = strings.TrimSuffix(centralBase, "/")
-
-		syncPayload, _ := json.Marshal(map[string]interface{}{
-			"id":         "pat-" + pat.ID,
-			"name":       pat.Name,
-			"cpf":        pat.CPF,
-			"birth_date": pat.BirthDate,
-			"email":      pat.Email,
-			"phone":      pat.Phone,
-			"gender":     pat.Gender,
-		})
-
-		client := &http.Client{Timeout: 4 * time.Second}
-		req, _ := http.NewRequest(http.MethodPost, centralBase+"/api/patients/sync", bytes.NewBuffer(syncPayload))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
-		_, _ = client.Do(req)
-	}(input)
+	go pushPatientToCentral(input)
 
 	c.JSON(http.StatusCreated, input)
 }
@@ -266,6 +255,12 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 		database.DB.Create(&localPatient)
 	}
 
+	// Cadastro vindo do centralizador (telefone, e-mail e extensões do Patient) atualiza o paciente local.
+	if haveRealBundle {
+		applyCentralPatient(&localPatient, fhirBundle.Entry)
+		database.DB.Save(&localPatient)
+	}
+
 	recordsImported := 0
 
 	// 4. Se tiver Bundle FHIR real, importa os exames anteriores
@@ -346,4 +341,85 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 		"records_imported": recordsImported,
 		"source":           "POHINC Central Bus",
 	})
+}
+
+// pushPatientToCentral envia o cadastro ao barramento centralizador Open Health POHINC.
+func pushPatientToCentral(pat models.Patient) {
+	centralURL := os.Getenv("CENTRAL_BUS_URL")
+	if centralURL == "" {
+		centralURL = "http://localhost:8002"
+	}
+	centralBase := strings.TrimSuffix(centralURL, "/api/exams/ingest")
+	centralBase = strings.TrimSuffix(centralBase, "/api/exams")
+	centralBase = strings.TrimSuffix(centralBase, "/")
+
+	syncPayload, _ := json.Marshal(map[string]interface{}{
+		"id":         "pat-" + pat.ID,
+		"name":       pat.Name,
+		"cpf":        pat.CPF,
+		"birth_date": pat.BirthDate,
+		"email":      pat.Email,
+		"phone":      pat.Phone,
+		"gender":     pat.Gender,
+		"insurance":  pat.Insurance,
+		"blood_type": pat.BloodType,
+		"allergies":  pat.Allergies,
+	})
+
+	client := &http.Client{Timeout: 4 * time.Second}
+	req, _ := http.NewRequest(http.MethodPost, centralBase+"/api/patients/sync", bytes.NewBuffer(syncPayload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+	_, _ = client.Do(req)
+}
+
+// applyCentralPatient copia do Patient do bundle o telefone, o e-mail e as extensões do POHINC (convênio, tipo sanguíneo, alergias).
+func applyCentralPatient(p *models.Patient, entries []struct {
+	Resource map[string]interface{} `json:"resource"`
+}) {
+	const (
+		extInsurance = "http://pohinc.com.br/fhir/StructureDefinition/insurance"
+		extBloodType = "http://pohinc.com.br/fhir/StructureDefinition/blood-type"
+		extAllergies = "http://pohinc.com.br/fhir/StructureDefinition/allergies"
+	)
+	for _, entry := range entries {
+		res := entry.Resource
+		if t, _ := res["resourceType"].(string); t != "Patient" {
+			continue
+		}
+		if telecom, ok := res["telecom"].([]interface{}); ok {
+			for _, item := range telecom {
+				tc, _ := item.(map[string]interface{})
+				system, _ := tc["system"].(string)
+				value, _ := tc["value"].(string)
+				if value == "" {
+					continue
+				}
+				if system == "phone" {
+					p.Phone = value
+				}
+				if system == "email" {
+					p.Email = value
+				}
+			}
+		}
+		if exts, ok := res["extension"].([]interface{}); ok {
+			for _, item := range exts {
+				ext, _ := item.(map[string]interface{})
+				url, _ := ext["url"].(string)
+				value, _ := ext["valueString"].(string)
+				if value == "" {
+					continue
+				}
+				switch url {
+				case extInsurance:
+					p.Insurance = value
+				case extBloodType:
+					p.BloodType = value
+				case extAllergies:
+					p.Allergies = value
+				}
+			}
+		}
+	}
 }
