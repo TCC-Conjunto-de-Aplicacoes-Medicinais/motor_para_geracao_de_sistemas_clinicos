@@ -116,6 +116,23 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 	cleanCPF := strings.ReplaceAll(strings.ReplaceAll(req.CPF, ".", ""), "-", "")
 
 	client := &http.Client{Timeout: 4 * time.Second}
+	// Código do paciente (app): o central libera o histórico por prazo curto. Sem código válido, a importação para.
+	if code := strings.TrimSpace(req.TokenCode); code != "" {
+		redeemBody, _ := json.Marshal(map[string]string{"cpf": cleanCPF, "code": code})
+		redeemReq, _ := http.NewRequest(http.MethodPost, centralBase+"/api/access-codes/redeem", bytes.NewReader(redeemBody))
+		redeemReq.Header.Set("Content-Type", "application/json")
+		redeemReq.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+		redeemResp, err := client.Do(redeemReq)
+		if err != nil || redeemResp.StatusCode != http.StatusOK {
+			if redeemResp != nil {
+				redeemResp.Body.Close()
+			}
+			c.JSON(http.StatusForbidden, gin.H{"error": "código do paciente inválido, expirado ou já utilizado"})
+			return
+		}
+		redeemResp.Body.Close()
+	}
+
 	searchURL := fmt.Sprintf("%s/api/patients/search?cpf=%s", centralBase, url.QueryEscape(cleanCPF))
 
 	var centralPatientID string
