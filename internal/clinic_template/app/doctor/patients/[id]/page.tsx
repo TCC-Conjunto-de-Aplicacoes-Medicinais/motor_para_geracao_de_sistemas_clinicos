@@ -452,10 +452,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cpf: patientData.cpf,
-          token_otp: '123456'
-        })
+        body: JSON.stringify({ cpf: patientData.cpf })
       });
       if (res.ok) {
         const data = await res.json();
@@ -513,10 +510,11 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
           }
         }
       } else {
-        showToast('✓ Conexão com Barramento Central ativa. Dados sincronizados.');
+        const err = await res.json().catch(() => ({}));
+        showToast(`✗ Sincronização não feita: ${err.error || `HTTP ${res.status}`}`);
       }
     } catch (e) {
-      showToast('✓ Barramento Central consultado: Prontuário em conformidade.');
+      showToast('✗ Sincronização não feita: barramento central indisponível.');
     } finally {
       setIsSyncingCentral(false);
     }

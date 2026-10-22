@@ -228,13 +228,22 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 		} `json:"entry"`
 	}
 
-	haveRealBundle := false
-	if fhirErr == nil && fhirResp.StatusCode == http.StatusOK {
-		if json.NewDecoder(fhirResp.Body).Decode(&fhirBundle) == nil && len(fhirBundle.Entry) > 0 {
-			haveRealBundle = true
-		}
-		fhirResp.Body.Close()
+	// Sem consentimento vigente o centralizador recusa o bundle: informa o motivo em vez de falhar em silêncio.
+	if fhirErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "barramento central indisponível"})
+		return
 	}
+	defer fhirResp.Body.Close()
+	if fhirResp.StatusCode == http.StatusForbidden {
+		c.JSON(http.StatusForbidden, gin.H{"error": "o paciente não liberou o acesso a esta clínica (sem consentimento vigente ou revogado). Peça a liberação pelo aplicativo ou gere um código novo."})
+		return
+	}
+	if fhirResp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("centralizador respondeu HTTP %d", fhirResp.StatusCode)})
+		return
+	}
+
+	haveRealBundle := json.NewDecoder(fhirResp.Body).Decode(&fhirBundle) == nil && len(fhirBundle.Entry) > 0
 
 	// 3. Salva ou atualiza o paciente no MariaDB local da clínica
 	var localPatient models.Patient
