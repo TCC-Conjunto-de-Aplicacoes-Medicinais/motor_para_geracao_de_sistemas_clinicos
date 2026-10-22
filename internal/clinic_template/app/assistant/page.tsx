@@ -78,8 +78,8 @@ export default function AssistantSchedulePage() {
   // Form State
   const [formData, setFormData] = useState({
     doctor: 'Dr. Silva',
-    patient: 'Maria Santos',
-    patientId: '1',
+    patient: '',
+    patientId: '',
     date: formatLocalDate(new Date()),
     hour: 9,
     type: 'Consulta',
@@ -134,16 +134,8 @@ export default function AssistantSchedulePage() {
       }
     } catch {}
 
-    // Default base appointments if empty
-    const todayStr = formatLocalDate(new Date());
-    const base: AppointmentItem[] = [
-      { id: 'apt-1', date: todayStr, hour: 9, time: '09:00', patient: 'Maria Santos', patientId: '1', doctor: 'Dr. Silva', doctorId: 'mock-doctor-silva', type: 'Retorno Cardiológico', status: 'Confirmado', insurance: 'Particular', price: 280 },
-      { id: 'apt-2', date: todayStr, hour: 11, time: '11:00', patient: 'Carlos Eduardo Oliveira', patientId: '2', doctor: 'Dr. Silva', doctorId: 'mock-doctor-silva', type: 'Consulta Hipertensão', status: 'Aguardando', insurance: 'Unimed', price: 220 },
-      { id: 'apt-3', date: todayStr, hour: 14, time: '14:00', patient: 'Ana Beatriz Lima', patientId: '3', doctor: 'Dra. Lima', doctorId: 'mock-doctor-lima', type: 'Avaliação ECG com IA', status: 'Em Sala', insurance: 'Bradesco', price: 350 },
-      { id: 'apt-4', date: todayStr, hour: 16, time: '16:00', patient: 'Roberto Ferreira Costa', patientId: '4', doctor: 'Dr. Santos', doctorId: 'mock-doctor-santos', type: 'Exame de Rotina', status: 'Agendado', insurance: 'SulAmérica', price: 250 },
-    ];
-    setAppointments(base);
-    localStorage.setItem('clinic_appointments', JSON.stringify(base));
+    // Sem consultas no banco da clínica, a lista fica vazia (sem dados de exemplo).
+    setAppointments([]);
   };
 
   const loadPatients = async () => {
@@ -159,12 +151,7 @@ export default function AssistantSchedulePage() {
       }
     } catch {}
 
-    setPatientsList([
-      { id: '1', name: 'Maria Santos' },
-      { id: '2', name: 'Carlos Eduardo Oliveira' },
-      { id: '3', name: 'Ana Beatriz Lima' },
-      { id: '4', name: 'Roberto Ferreira Costa' },
-    ]);
+    setPatientsList([]);
   };
 
   useEffect(() => {
@@ -191,7 +178,7 @@ export default function AssistantSchedulePage() {
   const handleOpenAddModal = (dateStr?: string, hour?: number) => {
     setFormData({
       doctor: selectedDoctor || 'Dr. Silva',
-      patient: patientsList[0]?.name || 'Maria Santos',
+      patient: patientsList[0]?.name || '',
       patientId: patientsList[0]?.id || '1',
       date: dateStr || formatLocalDate(new Date()),
       hour: hour || 9,

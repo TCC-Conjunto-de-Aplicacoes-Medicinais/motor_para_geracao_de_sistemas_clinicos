@@ -103,13 +103,8 @@ export default function CheckInPage() {
       }
     } catch {}
 
-    // Default mock today
-    setEntries([
-      { id: 'apt-1', time: '09:00', patient: 'Maria Santos', doctor: 'Dr. Silva', status: 'presente', insurance: 'Particular' },
-      { id: 'apt-2', time: '11:00', patient: 'Carlos Eduardo Oliveira', doctor: 'Dr. Silva', status: 'aguardando', insurance: 'Unimed' },
-      { id: 'apt-3', time: '14:00', patient: 'Ana Beatriz Lima', doctor: 'Dra. Lima', status: 'presente', insurance: 'Bradesco' },
-      { id: 'apt-4', time: '16:00', patient: 'Roberto Ferreira Costa', doctor: 'Dr. Santos', status: 'nao_chegou', insurance: 'SulAmérica' },
-    ]);
+    // Sem consultas no banco da clínica para hoje, a lista fica vazia (sem dados de exemplo).
+    setEntries([]);
   };
 
   useEffect(() => {

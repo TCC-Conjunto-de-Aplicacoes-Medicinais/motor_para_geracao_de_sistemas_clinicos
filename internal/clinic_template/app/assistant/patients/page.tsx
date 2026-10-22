@@ -92,12 +92,8 @@ export default function AssistantPatientsPage() {
       }
     } catch {}
 
-    setPatients([
-      { id: '1', name: 'Maria Santos', gender: 'F', age: 45, phone: '(11) 98765-4321', email: 'maria.santos@email.com', address: 'Rua das Flores, 120 - SP', insurance: 'Particular', lastVisit: 'Hoje' },
-      { id: '2', name: 'Carlos Eduardo Oliveira', gender: 'M', age: 51, phone: '(11) 97654-3210', email: 'carlos.oliveira@email.com', address: 'Av. Paulista, 1500 - SP', insurance: 'Unimed', lastVisit: 'Hoje' },
-      { id: '3', name: 'Ana Beatriz Lima', gender: 'F', age: 32, phone: '(11) 96543-2109', email: 'ana.lima@email.com', address: 'Rua Augusta, 450 - SP', insurance: 'Bradesco', lastVisit: 'Hoje' },
-      { id: '4', name: 'Roberto Ferreira Costa', gender: 'M', age: 60, phone: '(11) 95432-1098', email: 'roberto.costa@email.com', address: 'Alameda Santos, 890 - SP', insurance: 'SulAmérica', lastVisit: 'Hoje' },
-    ]);
+    // Sem pacientes no banco da clínica, a lista fica vazia (sem dados de exemplo).
+    setPatients([]);
   };
 
   useEffect(() => {

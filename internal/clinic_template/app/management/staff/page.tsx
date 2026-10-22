@@ -16,14 +16,7 @@ interface StaffMember {
   presence: number;
 }
 
-const DEFAULT_STAFF: StaffMember[] = [
-  { id: '1', name: 'Dr. Silva', role: 'Médico', email: 'dr.silva@gmail.com', crm: '123456/SP', status: 'ativo', days: 20, absences: 1, presence: 95 },
-  { id: '2', name: 'Dra. Lima', role: 'Médica', email: 'dra.lima@gmail.com', crm: '234567/SP', status: 'ativo', days: 19, absences: 2, presence: 90 },
-  { id: '3', name: 'Dr. Santos', role: 'Médico', email: 'dr.santos@gmail.com', crm: '345678/SP', status: 'ativo', days: 21, absences: 0, presence: 100 },
-  { id: '4', name: 'Carla M.', role: 'Assistente', email: 'carla@gmail.com', status: 'ativo', days: 22, absences: 1, presence: 96 },
-  { id: '5', name: 'Juliana R.', role: 'Assistente', email: 'juliana@gmail.com', status: 'ativo', days: 22, absences: 0, presence: 100 },
-  { id: '6', name: 'Roberto S.', role: 'Assistente', email: 'roberto@gmail.com', status: 'inativo', days: 0, absences: 0, presence: 0 },
-];
+const DEFAULT_STAFF: StaffMember[] = []; // equipe sem exemplos; cadastro ainda é local (sem rota no backend)
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>(DEFAULT_STAFF);
