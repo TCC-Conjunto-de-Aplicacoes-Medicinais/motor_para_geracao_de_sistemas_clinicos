@@ -69,6 +69,13 @@ func handleGenerate(w http.ResponseWriter, r *http.Request, cfg *config.Config) 
 		return
 	}
 
+	// OBJ_KEY precisa ser a mesma chave do wizard; sem ela não há como derivar a chave do payload.
+	if len(cfg.ObjKey) < 8 {
+		log.Printf("[API] OBJ_KEY ausente ou curta demais: não é possível descriptografar o payload")
+		http.Error(w, "Servidor sem OBJ_KEY configurada", http.StatusInternalServerError)
+		return
+	}
+
 	key := crypto.DeriveKey(req.Email, req.CNPJ, cfg.ObjKey)
 	plaintext, err := crypto.DecryptAESGCM(key, req.Data.Payload, req.Data.Nonce)
 	if err != nil {
