@@ -744,16 +744,17 @@ func mapPayloadToTFVars(p *models.SystemPayload, cfg *config.Config) map[string]
 	}
 
 	return map[string]interface{}{
-		"clinic_id":      p.ID,
-		"clinic_name":    p.Identity.ClinicName,
-		"environment":    p.Technical.Environment,
-		"instance_type":  instanceType,
-		"aws_region":     cfg.AWSRegion,
-		"aws_access_key": cfg.AWSAccessKeyID,
-		"aws_secret_key": cfg.AWSSecretAccessKey,
-		"dr_enabled":     p.Technical.HasDisasterRecovery,
-		"module_doctor":  p.Modules.Doctor.Enabled,
-		"module_billing": p.Modules.Management.Features.BillingControl,
+		"clinic_id":       p.ID,
+		"clinic_name":     p.Identity.ClinicName,
+		"central_bus_key": os.Getenv("CENTRAL_BUS_KEY"),
+		"environment":     p.Technical.Environment,
+		"instance_type":   instanceType,
+		"aws_region":      cfg.AWSRegion,
+		"aws_access_key":  cfg.AWSAccessKeyID,
+		"aws_secret_key":  cfg.AWSSecretAccessKey,
+		"dr_enabled":      p.Technical.HasDisasterRecovery,
+		"module_doctor":   p.Modules.Doctor.Enabled,
+		"module_billing":  p.Modules.Management.Features.BillingControl,
 	}
 }
 

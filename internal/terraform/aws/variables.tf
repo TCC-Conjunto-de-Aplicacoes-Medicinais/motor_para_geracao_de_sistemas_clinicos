@@ -3,6 +3,13 @@ variable "clinic_id" {
   description = "Identificador único da clínica"
 }
 
+variable "central_bus_key" {
+  type        = string
+  description = "Chave de sincronização com o centralizador (X-Clinic-Key)"
+  sensitive   = true
+  default     = ""
+}
+
 variable "clinic_name" {
   type        = string
   description = "Nome da clínica parceira"

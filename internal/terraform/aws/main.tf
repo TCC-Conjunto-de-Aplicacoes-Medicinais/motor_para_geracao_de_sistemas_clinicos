@@ -404,7 +404,8 @@ resource "aws_instance" "clinic_server" {
                     DB_USER: "clinic_user"
                     DB_PASSWORD: "clinic_pass"
                     DB_NAME: "clinic_${var.clinic_id}"
-                    CENTRAL_BUS_URL: "https://central.pohinc.com.br/api/exams"
+                    CENTRAL_BUS_URL: "https://api.pohinc.com.br"
+                    CENTRAL_BUS_KEY: "${var.central_bus_key}"
                   ports:
                     - "8080:8080"
                   command: /app/clinic_backend
