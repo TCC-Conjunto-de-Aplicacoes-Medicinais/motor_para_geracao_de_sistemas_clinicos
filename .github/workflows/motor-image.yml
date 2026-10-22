@@ -1,4 +1,4 @@
-name: Motor image
+name: Motor deploy
 
 on:
   workflow_dispatch:
@@ -21,3 +21,57 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/motor-demo:latest
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            mkdir -p ~/motor-demo && cd ~/motor-demo
+
+            cat > .env <<EOF_ENV
+            MOTOR_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/motor-demo:latest
+            PORT=8005
+            MOTOR_TOKEN=${{ secrets.MOTOR_TOKEN }}
+            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_REGION=${{ secrets.AWS_REGION }}
+            AWS_REQUIRE_WHITELIST=false
+            AUTO_DESTROY_MINUTES=10
+            MAX_CONCURRENT_AWS_INSTANCES=3
+            MAX_CLINICS_PER_DAY=20
+            ALLOW_LOCAL_GENERATE=false
+            EOF_ENV
+
+            cat > docker-compose.yml <<'EOF_COMPOSE'
+            services:
+              motor:
+                image: ${MOTOR_IMAGE}
+                container_name: motor_demo
+                restart: always
+                env_file: .env
+                environment:
+                  PORT: "8005"
+                  ALLOW_LOCAL_GENERATE: "false"
+                ports:
+                  - "8005:8005"
+                volumes:
+                  - motor_states:/app/.states
+                mem_limit: 512m
+
+            volumes:
+              motor_states:
+            EOF_COMPOSE
+
+            docker compose pull
+            docker compose up -d
+            sleep 5
+            curl -s http://127.0.0.1:8005/health
