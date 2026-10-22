@@ -36,6 +36,55 @@ func GetPatientHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, patient)
 }
 
+type updatePatientRequest struct {
+	Name      *string `json:"name"`
+	BirthDate *string `json:"birth_date"`
+	Gender    *string `json:"gender"`
+	Phone     *string `json:"phone"`
+	Email     *string `json:"email"`
+	Address   *string `json:"address"`
+}
+
+// UpdatePatientHandler altera só os campos enviados, para que a edição do cadastro fique gravada no banco da clínica.
+func UpdatePatientHandler(c *gin.Context) {
+	id := c.Param("id")
+	var patient models.Patient
+	if err := database.DB.First(&patient, "id = ?", id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Paciente não encontrado"})
+		return
+	}
+
+	var req updatePatientRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido: " + err.Error()})
+		return
+	}
+	if req.Name != nil {
+		patient.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.BirthDate != nil {
+		patient.BirthDate = strings.TrimSpace(*req.BirthDate)
+	}
+	if req.Gender != nil {
+		patient.Gender = strings.TrimSpace(*req.Gender)
+	}
+	if req.Phone != nil {
+		patient.Phone = strings.TrimSpace(*req.Phone)
+	}
+	if req.Email != nil {
+		patient.Email = strings.TrimSpace(*req.Email)
+	}
+	if req.Address != nil {
+		patient.Address = strings.TrimSpace(*req.Address)
+	}
+
+	if err := database.DB.Save(&patient).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao salvar paciente"})
+		return
+	}
+	c.JSON(http.StatusOK, patient)
+}
+
 func CreatePatientHandler(c *gin.Context) {
 	var input models.Patient
 	if err := c.ShouldBindJSON(&input); err != nil {

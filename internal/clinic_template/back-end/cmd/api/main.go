@@ -65,6 +65,7 @@ func main() {
 		// Pacientes
 		api.GET("/patients", handlers.ListPatientsHandler)
 		api.GET("/patients/:id", handlers.GetPatientHandler)
+		api.PUT("/patients/:id", handlers.UpdatePatientHandler)
 		api.POST("/patients", handlers.CreatePatientHandler)
 		api.POST("/patients/import", handlers.ImportPatientFromCentralHandler)
 		api.POST("/patients/import-central", handlers.ImportPatientFromCentralHandler)

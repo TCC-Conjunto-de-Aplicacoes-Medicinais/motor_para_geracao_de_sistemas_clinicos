@@ -243,6 +243,22 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
     setPatientData(loadedPatient);
 
+    // O cadastro do banco da clínica prevalece sobre o fallback local (senão o nome aparece como "Paciente #id").
+    fetch(`${backendUrl || 'http://localhost:8081'}/api/patients/${patientId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((p) => {
+        if (!p) return;
+        setPatientData((prev) => ({
+          ...prev,
+          name: p.name || prev.name,
+          cpf: p.cpf || prev.cpf,
+          phone: p.phone || prev.phone,
+          email: p.email || prev.email,
+          gender: p.gender || prev.gender,
+        }));
+      })
+      .catch(() => {});
+
     // Carregar perfil do médico atualizado
     const savedDoc = localStorage.getItem('clinic_doctor_profile');
     if (savedDoc) {
