@@ -41,6 +41,11 @@ func packageAWSBundle(workDir string, payload *models.SystemPayload) error {
 	}
 
 	// 2. Backend Go - Adicionar o arquivo de ambiente .env
+	// CENTRAL_BUS_* levam as alterações da clínica ao centralizador (sincronização). Sem elas a clínica não envia nada.
+	centralURL := os.Getenv("CENTRAL_BUS_URL")
+	if centralURL == "" {
+		centralURL = "https://api.pohinc.com.br"
+	}
 	envContent := fmt.Sprintf(`DB_USER=clinic_user
 DB_PASSWORD=clinic_pass
 DB_HOST=mariadb
@@ -49,7 +54,9 @@ DB_NAME=clinic_%s
 CLINIC_NAME=%s
 CLINIC_ID=%s
 PORT=8080
-`, payload.ID, payload.Identity.ClinicName, payload.ID)
+CENTRAL_BUS_URL=%s
+CENTRAL_BUS_KEY=%s
+`, payload.ID, payload.Identity.ClinicName, payload.ID, centralURL, os.Getenv("CENTRAL_BUS_KEY"))
 
 	if err := addBytesToTar(tw, []byte(envContent), "backend/.env", 0644); err != nil {
 		return fmt.Errorf("falha ao adicionar .env do backend: %v", err)
