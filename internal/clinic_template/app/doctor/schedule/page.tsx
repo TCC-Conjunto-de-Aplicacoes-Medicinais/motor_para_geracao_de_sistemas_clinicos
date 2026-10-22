@@ -93,15 +93,8 @@ export default function SchedulePage() {
       }
     } catch {}
 
-    const todayStr = formatLocalDate(new Date());
-    const baseAppointments = [
-      { id: 'apt-1', date: todayStr, hour: 9, time: '09:00', patient: 'Maria Santos', patientId: '1', doctor: 'Dr. Silva', type: 'Retorno Cardiológico', status: 'Confirmado', insurance: 'Particular', price: 280 },
-      { id: 'apt-2', date: todayStr, hour: 11, time: '11:00', patient: 'Carlos Eduardo Oliveira', patientId: '2', doctor: 'Dr. Silva', type: 'Consulta Hipertensão', status: 'Aguardando', insurance: 'Unimed', price: 220 },
-      { id: 'apt-3', date: todayStr, hour: 14, time: '14:00', patient: 'Ana Beatriz Lima', patientId: '3', doctor: 'Dra. Lima', type: 'Avaliação ECG com IA', status: 'Em Sala', insurance: 'Bradesco', price: 350 },
-      { id: 'apt-4', date: todayStr, hour: 16, time: '16:00', patient: 'Roberto Ferreira Costa', patientId: '4', doctor: 'Dr. Santos', type: 'Exame de Rotina', status: 'Agendado', insurance: 'SulAmérica', price: 250 },
-    ];
-    setAppointments(baseAppointments);
-    localStorage.setItem('clinic_appointments', JSON.stringify(baseAppointments));
+    // Sem consultas no banco da clínica, a agenda fica vazia (sem dados de exemplo).
+    setAppointments([]);
   };
 
   React.useEffect(() => {
