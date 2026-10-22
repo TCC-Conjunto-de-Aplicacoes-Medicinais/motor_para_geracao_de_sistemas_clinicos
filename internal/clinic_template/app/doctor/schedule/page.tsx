@@ -68,7 +68,7 @@ export default function SchedulePage() {
               patient: a.patient_name || 'Paciente',
               patientId: a.patient_id || '1',
               doctor: a.doctor_name || 'Dr. Silva',
-              doctorId: a.doctor_id || 'mock-doctor-silva',
+              doctorId: a.doctor_id || '',
               type: a.reason || 'Consulta',
               status: a.status === 'confirmed' ? 'Confirmado' : a.status === 'waiting' ? 'Aguardando' : a.status === 'in_progress' ? 'Em Sala' : a.status === 'completed' ? 'Finalizado' : a.status === 'cancelled' ? 'Cancelado' : 'Agendado',
               insurance: a.insurance || 'Particular',

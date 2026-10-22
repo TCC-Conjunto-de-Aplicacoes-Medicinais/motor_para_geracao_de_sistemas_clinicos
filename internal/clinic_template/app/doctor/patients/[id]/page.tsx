@@ -111,107 +111,17 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     lastVisit: string;
   }
 
-  const DEFAULT_PATIENTS: Record<string, PatientData> = {
-    '1': {
-      id: '1',
-      name: 'Maria Santos',
-      age: 45,
-      gender: 'Feminino',
-      cpf: '123.456.789-00',
-      phone: '(11) 98765-4321',
-      email: 'maria.santos@email.com',
-      insurance: 'Unimed Paulistana',
-      specialty: 'Cardiologia',
-      status: 'Ativo',
-      lastVisit: '10/04/2026'
-    },
-    'pat-amanda': {
-      id: 'pat-amanda',
-      name: 'Amanda Silva Castro',
-      age: 36,
-      gender: 'Feminino',
-      cpf: '123.456.789-99',
-      phone: '(11) 99123-4567',
-      email: 'amanda.silva@email.com',
-      insurance: 'Unimed Paulistana',
-      specialty: 'Cardiologia',
-      status: 'Ativo',
-      lastVisit: 'Hoje'
-    },
-    '1792281070673': {
-      id: 'pat-amanda',
-      name: 'Amanda Silva Castro',
-      age: 36,
-      gender: 'Feminino',
-      cpf: '123.456.789-99',
-      phone: '(11) 99123-4567',
-      email: 'amanda.silva@email.com',
-      insurance: 'Unimed Paulistana',
-      specialty: 'Cardiologia',
-      status: 'Ativo',
-      lastVisit: 'Hoje'
-    },
-    '2': {
-      id: '2',
-      name: 'Carlos Eduardo Oliveira',
-      age: 52,
-      gender: 'Masculino',
-      cpf: '234.567.890-11',
-      phone: '(11) 98765-4321',
-      email: 'carlos.eduardo@email.com',
-      insurance: 'Bradesco Saúde',
-      specialty: 'Cardiologia',
-      status: 'Em Tratamento',
-      lastVisit: '08/04/2026'
-    },
-    '3': {
-      id: '3',
-      name: 'Ana Beatriz Lima',
-      age: 29,
-      gender: 'Feminino',
-      cpf: '345.678.901-22',
-      phone: '(11) 97654-3210',
-      email: 'ana.lima@email.com',
-      insurance: 'SulAmérica',
-      specialty: 'Clínica Geral',
-      status: 'Alta',
-      lastVisit: '12/03/2026'
-    },
-    '4': {
-      id: '4',
-      name: 'Roberto Ferreira Costa',
-      age: 61,
-      gender: 'Masculino',
-      cpf: '456.789.012-33',
-      phone: '(11) 96543-2109',
-      email: 'roberto.costa@email.com',
-      insurance: 'Amil',
-      specialty: 'Cardiologia',
-      status: 'Ativo',
-      lastVisit: '01/05/2026'
-    }
-  };
+  // Sem dados de exemplo: o paciente vem do banco da clínica (ver o carregamento abaixo).
+  const EMPTY_PATIENT: PatientData = { id: "", name: "", age: "", gender: "", cpf: "", phone: "", email: "", insurance: "", specialty: "", status: "", lastVisit: "" };
 
-  const [patientData, setPatientData] = useState<PatientData>(DEFAULT_PATIENTS['1']);
+  const [patientData, setPatientData] = useState<PatientData>(EMPTY_PATIENT);
 
   // 1. Carregar Dados Persistidos do Prontuário, Médico e Paciente Específico
   useEffect(() => {
     const patientId = String(params?.id || '1');
 
     // Identificar dados do paciente (localStorage ou dicionário)
-    let loadedPatient: PatientData = DEFAULT_PATIENTS[patientId] || {
-      id: patientId,
-      name: `Paciente #${patientId}`,
-      age: 38,
-      gender: 'Não informado',
-      cpf: '123.456.789-99',
-      phone: '(11) 99123-4567',
-      email: 'paciente@email.com',
-      insurance: 'Unimed Paulistana',
-      specialty: 'Cardiologia',
-      status: 'Ativo',
-      lastVisit: 'Hoje'
-    };
+    let loadedPatient: PatientData = { ...EMPTY_PATIENT, id: patientId };
 
     try {
       const savedList = localStorage.getItem('clinic_patients_list');
@@ -220,15 +130,15 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
         if (Array.isArray(parsedList)) {
           const found = parsedList.find((p: any) => String(p.id) === patientId);
           if (found) {
-            const baseDefaults = DEFAULT_PATIENTS[patientId];
+            const baseDefaults: PatientData | undefined = undefined;
             loadedPatient = {
               id: String(found.id),
               name: found.name || loadedPatient.name,
               age: found.age || loadedPatient.age,
-              gender: found.gender || baseDefaults?.gender || (found.name?.trim().split(' ')[0]?.toLowerCase().endsWith('a') ? 'Feminino' : 'Masculino'),
+              gender: found.gender || baseDefaults?.gender || loadedPatient.gender,
               cpf: found.cpf || baseDefaults?.cpf || loadedPatient.cpf,
               phone: found.phone || baseDefaults?.phone || loadedPatient.phone,
-              email: found.email || baseDefaults?.email || (found.name ? `${found.name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@email.com` : loadedPatient.email),
+              email: found.email || baseDefaults?.email || loadedPatient.email,
               insurance: found.insurance || baseDefaults?.insurance || loadedPatient.insurance,
               specialty: found.specialty || baseDefaults?.specialty || loadedPatient.specialty,
               status: found.status || baseDefaults?.status || loadedPatient.status,
