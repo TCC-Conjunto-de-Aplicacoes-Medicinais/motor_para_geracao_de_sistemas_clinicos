@@ -84,18 +84,18 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   // Template Builder Clínico Estruturado
   const [templateType, setTemplateType] = useState<'receituario' | 'laudo' | 'atestado'>('receituario');
   const [templateForm, setTemplateForm] = useState({
-    medicationName: 'Losartana Potássica 50mg',
-    dosage: 'Tomar 1 comprimido VO pela manhã em jejum',
-    duration: 'Uso contínuo (reavaliação ambulatorial em 90 dias)',
-    instructions: 'Aferir pressão arterial 2 vezes por semana. Manter dieta hipossódica e hidratação regular.',
-    clinicalIndication: 'Investigação de queixa de palpitações e controle de hipertensão arterial.',
-    findings: 'Ritmo sinusal regular. Intervalos PR e QTc normais. Sem sobrecargas cavitárias ou alterações isquêmicas agudas.',
-    conclusion: 'Eletrocardiograma de repouso dentro dos limites da normalidade para faixa etária.',
-    recommendation: 'Manter posologia atual e retornar em 6 meses com novos exames de rotina.',
-    cid: 'I10 - Hipertensão essencial (primária)',
-    absenceDays: '2 (dois) dias',
-    absenceReason: 'Necessidade de repouso clínico para estabilização hemodinâmica.',
-    generalNotes: 'Paciente esteve sob atendimento médico nesta clínica ambulatorial.',
+    medicationName: '',
+    dosage: '',
+    duration: '',
+    instructions: '',
+    clinicalIndication: '',
+    findings: '',
+    conclusion: '',
+    recommendation: '',
+    cid: '',
+    absenceDays: '',
+    absenceReason: '',
+    generalNotes: '',
   });
 
   // Interface e Base de Dados de Pacientes
@@ -943,36 +943,6 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                     style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
                   >
                     + Sobrecarga Ventricular (SVE)
-                  </button>
-                </>
-              )}
-              {templateType === 'atestado' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setTemplateForm({
-                      ...templateForm,
-                      cid: 'I10 - Hipertensão essencial',
-                      absenceDays: '1 (um) dia',
-                      absenceReason: 'Realização de consulta médica e propedêutica cardiovascular.',
-                      generalNotes: 'Paciente compareceu ao ambulatório e necessita de repouso nesta data.',
-                    })}
-                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    + Comparecimento Consulta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTemplateForm({
-                      ...templateForm,
-                      cid: 'R07.4 - Dor torácica não especificada',
-                      absenceDays: '3 (três) dias',
-                      absenceReason: 'Convalescença e investigação diagnóstica de sintomatologia torácica.',
-                      generalNotes: 'Recomenda-se repouso físico domiciliar e retorno imediato em caso de recidiva álgica.',
-                    })}
-                    style={{ padding: '0.35rem 0.7rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-app)', color: 'var(--color-accent)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    + Afastamento 3 dias
                   </button>
                 </>
               )}
@@ -1937,13 +1907,6 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
                 ))}
               </div>
 
-              <div onClick={() => setShowPrescriptionModal(true)} style={{ marginTop: '1rem', padding: '0.8rem', borderRadius: '6px', backgroundColor: 'var(--bg-app)', display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', border: '1px solid transparent', transition: 'border 0.2s' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-                <span style={{ fontSize: '1.2rem' }}>📋</span>
-                <div>
-                  <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>Template base da clínica</p>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>modelo_prescricao.docx</span>
-                </div>
-              </div>
             </section>
           )}
 

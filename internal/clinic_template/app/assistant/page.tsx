@@ -52,14 +52,27 @@ interface AppointmentItem {
   color?: string;
 }
 
-const DOCTORS = [
-  { id: 'mock-doctor-silva', name: 'Dr. Silva', specialty: 'Cardiologia', color: 'var(--color-primary)' },
-  { id: 'mock-doctor-lima', name: 'Dra. Lima', specialty: 'Clínica Geral', color: 'var(--color-accent)' },
-  { id: 'mock-doctor-santos', name: 'Dr. Santos', specialty: 'Cardiologia / Exames', color: '#F59E0B' },
-];
+type DoctorOption = { id: string; name: string; specialty: string; color: string };
+const DOCTOR_COLORS = ['var(--color-primary)', 'var(--color-accent)', '#F59E0B'];
 
 export default function AssistantSchedulePage() {
   const { backendUrl } = useTheme();
+  const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+
+  useEffect(() => {
+    fetch(`${backendUrl}/api/doctors`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: Array<{ id: string; name: string; crm: string }>) => {
+        if (!Array.isArray(list)) return;
+        setDoctors(list.map((d, i) => ({
+          id: d.id,
+          name: d.name,
+          specialty: d.crm ? `CRM ${d.crm}` : '',
+          color: DOCTOR_COLORS[i % DOCTOR_COLORS.length],
+        })));
+      })
+      .catch(() => setDoctors([]));
+  }, [backendUrl]);
   const hours = Array.from({ length: 9 }, (_, i) => i + 8); // 08:00 to 16:00
   const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -166,7 +179,7 @@ export default function AssistantSchedulePage() {
   const monthYearStr = formatMonthYear(currentWeekStart);
 
   const getDoctorColor = (docName: string) => {
-    const doc = DOCTORS.find(d => d.name === docName);
+    const doc = doctors.find(d => d.name === docName);
     return doc?.color || 'var(--color-primary)';
   };
 
@@ -190,7 +203,8 @@ export default function AssistantSchedulePage() {
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    const doc = DOCTORS.find(d => d.name === formData.doctor) || DOCTORS[0];
+    const doc = doctors.find(d => d.name === formData.doctor) || doctors[0];
+    if (!doc) return;
     const newId = `apt-${Date.now()}`;
     const dt = new Date(`${formData.date}T${String(formData.hour).padStart(2, '0')}:00:00`);
 
@@ -339,7 +353,7 @@ export default function AssistantSchedulePage() {
         >
           Todos os Médicos ({appointments.length})
         </button>
-        {DOCTORS.map(doc => {
+        {doctors.map(doc => {
           const count = appointments.filter(a => a.doctor === doc.name).length;
           const isSelected = selectedDoctor === doc.name;
           return (
@@ -520,7 +534,7 @@ export default function AssistantSchedulePage() {
                 fontSize: '0.95rem'
               }}
             >
-              {DOCTORS.map(d => (
+              {doctors.map(d => (
                 <option key={d.name} value={d.name}>{d.name} — {d.specialty}</option>
               ))}
             </select>

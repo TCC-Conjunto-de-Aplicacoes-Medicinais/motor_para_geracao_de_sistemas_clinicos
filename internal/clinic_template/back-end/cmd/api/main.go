@@ -75,6 +75,7 @@ func main() {
 		api.GET("/records", handlers.ListRecordsHandler)
 		api.POST("/records", handlers.CreateRecordHandler)
 		api.GET("/medications", handlers.ListMedicationsHandler)
+		api.GET("/doctors", handlers.ListDoctorsHandler)
 		api.POST("/medications", handlers.CreateMedicationHandler)
 
 		// Agendamentos

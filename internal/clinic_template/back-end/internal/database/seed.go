@@ -27,6 +27,9 @@ func SeedData(db *gorm.DB) {
 	// 5. Seed Base Appointments
 	seedAppointments(db)
 
+	// 6. Seed Base Records (prontuários de exemplo, sem envio ao centralizador)
+	seedRecords(db)
+
 	log.Println("Seeding completed!")
 }
 
@@ -245,5 +248,25 @@ func seedAppointments(db *gorm.DB) {
 	}
 }
 
-
-
+// seedRecords cria prontuários de exemplo para os pacientes da amostra, para o histórico não aparecer vazio.
+func seedRecords(db *gorm.DB) {
+	var count int64
+	db.Model(&models.MedicalRecord{}).Count(&count)
+	if count > 0 {
+		return
+	}
+	now := time.Now()
+	records := []models.MedicalRecord{
+		{ID: "rec-sample-1", PatientID: "1", DoctorID: "mock-doctor-silva", DoctorName: "Dr. Silva", Date: now.AddDate(0, 0, -30), Diagnosis: "Consulta — Retorno cardiológico", Prescription: "Manter medicação atual", Notes: "Paciente estável, sem queixas no período."},
+		{ID: "rec-sample-2", PatientID: "1", DoctorID: "mock-doctor-silva", DoctorName: "Dr. Silva", Date: now.AddDate(0, 0, -7), Diagnosis: "Exame — Eletrocardiograma de repouso", Prescription: "", Notes: "Ritmo sinusal. Sem alterações agudas."},
+		{ID: "rec-sample-3", PatientID: "2", DoctorID: "mock-doctor-lima", DoctorName: "Dra. Lima", Date: now.AddDate(0, 0, -14), Diagnosis: "Consulta — Controle de hipertensão", Prescription: "Ajuste de dose anti-hipertensiva", Notes: "PA dentro da meta após ajuste."},
+		{ID: "rec-sample-4", PatientID: "4", DoctorID: "mock-doctor-santos", DoctorName: "Dr. Santos", Date: now.AddDate(0, 0, -3), Diagnosis: "Exame — Holter 24h", Prescription: "", Notes: "Sem arritmias significativas no período."},
+	}
+	for _, r := range records {
+		r.CreatedAt = now
+		r.UpdatedAt = now
+		r.FHIRResourceID = "fhir-rec-" + r.ID
+		db.Create(&r)
+	}
+	log.Println("[Seed] Prontuários de exemplo inseridos no banco da clínica.")
+}
