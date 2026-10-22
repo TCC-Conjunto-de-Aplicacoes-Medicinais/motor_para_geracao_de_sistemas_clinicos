@@ -180,7 +180,16 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 	searchReq, _ := http.NewRequest(http.MethodGet, searchURL, nil)
 	searchReq.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
 	resp, err := client.Do(searchReq)
-	if err == nil && resp.StatusCode == http.StatusOK {
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "barramento central indisponível: " + err.Error()})
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("centralizador respondeu HTTP %d na busca do paciente", resp.StatusCode)})
+		return
+	}
+	if resp.StatusCode == http.StatusOK {
 		var searchResult struct {
 			Found   bool `json:"found"`
 			Patient struct {
