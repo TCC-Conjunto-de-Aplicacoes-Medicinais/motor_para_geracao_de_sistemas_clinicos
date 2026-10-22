@@ -215,6 +215,12 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       .then((r) => r.json())
       .then((records: any[]) => {
         if (Array.isArray(records) && records.length > 0) {
+          // Anotações do banco da clínica (a fonte; o navegador não guarda a cópia definitiva).
+          const dbNotes = records
+            .filter((rec: any) => rec.diagnosis === 'Anotação clínica')
+            .map((rec: any) => ({ date: new Date(rec.date).toLocaleDateString('pt-BR'), text: rec.notes }));
+          if (dbNotes.length > 0) setNotes(dbNotes);
+
           const recFiles = records
             .filter((rec: any) => isExamDiagnosis(rec.diagnosis, rec.fhir_resource_id))
             .map((rec: any, idx: number) => ({
@@ -281,9 +287,23 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   // Handlers de Anotações
   const handleAddNote = () => {
     if (newNote.trim() !== '') {
-      const updatedNotes = [{ date: new Date().toLocaleDateString('pt-BR'), text: newNote }, ...notes];
+      const text = newNote.trim();
+      const updatedNotes = [{ date: new Date().toLocaleDateString('pt-BR'), text }, ...notes];
       setNotes(updatedNotes);
       persistPatientData({ notes: updatedNotes });
+      // Gravada no banco da clínica e replicada ao centralizador (mesmo caminho dos laudos).
+      fetch(`${backendUrl || 'http://localhost:8081'}/api/records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient_id: params?.id || '1',
+          doctor_id: 'med-01',
+          doctor_name: 'Dr. Responsável (CRM ' + doctorCrm + ')',
+          date: new Date().toISOString(),
+          diagnosis: 'Anotação clínica',
+          notes: text,
+        }),
+      }).catch((err) => console.warn('Aviso ao sincronizar anotação com backend:', err));
       showToast('✓ Nova anotação clínica salva no prontuário!');
     }
     setNewNote('');

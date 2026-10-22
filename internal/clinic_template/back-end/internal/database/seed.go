@@ -129,16 +129,6 @@ func seedPatients(db *gorm.DB) {
 				Address:   "Av. Paulista, 1500 - São Paulo/SP (POHINC Integrado)",
 			},
 			{
-				ID:        "3",
-				Name:      "Ana Beatriz Lima",
-				CPF:       "345.678.901-22",
-				BirthDate: "1994-11-03",
-				Gender:    "Feminino",
-				Phone:     "(11) 96543-2109",
-				Email:     "ana.lima@email.com",
-				Address:   "Rua Augusta, 450 - São Paulo/SP (POHINC Integrado)",
-			},
-			{
 				ID:        "4",
 				Name:      "Roberto Ferreira Costa",
 				CPF:       "456.789.012-33",
@@ -172,7 +162,6 @@ func seedAppointments(db *gorm.DB) {
 		// Dias seguintes
 		t5 := t1.Add(24 * time.Hour)
 		t6 := t3.Add(24 * time.Hour)
-		t7 := t2.Add(48 * time.Hour)
 
 		baseAppointments := []models.Appointment{
 			{
@@ -200,20 +189,6 @@ func seedAppointments(db *gorm.DB) {
 				Reason:      "Consulta Hipertensão",
 				Insurance:   "Unimed",
 				Price:       220.0,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-			},
-			{
-				ID:          "apt-3",
-				PatientID:   "3",
-				PatientName: "Ana Beatriz Lima",
-				DoctorID:    "mock-doctor-lima",
-				DoctorName:  "Dra. Lima",
-				DateTime:    t3,
-				Status:      "in_progress",
-				Reason:      "Avaliação ECG com IA",
-				Insurance:   "Bradesco",
-				Price:       350.0,
 				CreatedAt:   now,
 				UpdatedAt:   now,
 			},
@@ -256,20 +231,6 @@ func seedAppointments(db *gorm.DB) {
 				Reason:      "Eletrocardiograma de Esforço",
 				Insurance:   "Unimed",
 				Price:       320.0,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-			},
-			{
-				ID:          "apt-7",
-				PatientID:   "3",
-				PatientName: "Ana Beatriz Lima",
-				DoctorID:    "mock-doctor-silva",
-				DoctorName:  "Dr. Silva",
-				DateTime:    t7,
-				Status:      "scheduled",
-				Reason:      "Consulta Cardiológica Preventiva",
-				Insurance:   "Bradesco",
-				Price:       250.0,
 				CreatedAt:   now,
 				UpdatedAt:   now,
 			},
