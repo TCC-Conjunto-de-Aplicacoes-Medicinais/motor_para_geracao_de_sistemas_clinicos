@@ -328,6 +328,8 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 		stopNativeProcessesForClinic(clinicID)
 	}
 
+	// Remove a cópia do provider do Terraform da clínica destruída: sem isso o disco do servidor enche.
+	_ = os.RemoveAll(filepath.Join(workDir, ".terraform"))
 	updateStatus(workDir, "destroyed", "Infraestrutura desprovisionada com sucesso", "", "", "")
 	log.Printf("[Engine] 🗑️ Infraestrutura da clínica %s destruída com sucesso!", clinicID)
 	return nil

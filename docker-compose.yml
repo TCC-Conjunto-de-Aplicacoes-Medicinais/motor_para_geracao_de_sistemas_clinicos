@@ -8,6 +8,7 @@ services:
     env_file: .env
     environment:
       PORT: "8005"
+      TF_PLUGIN_CACHE_DIR: "/app/.tfcache"
       ALLOW_LOCAL_GENERATE: "false"
     ports:
       - "8005:8005"
