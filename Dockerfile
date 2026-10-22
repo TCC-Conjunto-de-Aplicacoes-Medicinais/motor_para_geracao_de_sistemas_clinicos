@@ -29,6 +29,7 @@ COPY --from=build /out/motor ./motor
 COPY --from=build /src/internal ./internal
 COPY --from=build /src/internal/clinic_template/back-end/clinic_backend ./internal/clinic_template/back-end/clinic_backend
 COPY --from=web /src/clinic_template/.next/standalone ./internal/clinic_template/.next/standalone
+COPY --from=web /src/clinic_template/.next/static ./internal/clinic_template/.next/static
 RUN mkdir -p /app/.states
 EXPOSE 8005
 CMD ["./motor"]

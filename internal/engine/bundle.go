@@ -90,6 +90,14 @@ PORT=8080
 		return fmt.Errorf("falha ao empacotar arquivos do frontend: %v", err)
 	}
 
+	// O standalone do Next não inclui os assets (.next/static) nem a pasta public: sem eles a página abre em branco (404 em JS/CSS).
+	if err := addTreeToTar(tw, filepath.Join("internal", "clinic_template", ".next", "static"), "frontend/.next/static", ""); err != nil {
+		return fmt.Errorf("falha ao empacotar assets estáticos do frontend: %v", err)
+	}
+	if err := addTreeToTar(tw, filepath.Join("internal", "clinic_template", "public"), "frontend/public", "clinic.config.json"); err != nil {
+		return fmt.Errorf("falha ao empacotar pasta public do frontend: %v", err)
+	}
+
 	// 4. Injetar a configuração personalizada da clínica no frontend (public/clinic.config.json)
 	configMap := make(map[string]interface{})
 	payloadBytes, _ := json.Marshal(payload)
@@ -144,4 +152,29 @@ func addBytesToTar(tw *tar.Writer, data []byte, tarName string, mode int64) erro
 	}
 	_, err := tw.Write(data)
 	return err
+}
+
+// addTreeToTar grava uma árvore de diretórios no tar, com o prefixo dst.
+// skipName ignora um arquivo pelo nome (ex.: clinic.config.json, que é injetado depois).
+func addTreeToTar(tw *tar.Writer, src, dst, skipName string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		if !info.IsDir() && filepath.Base(path) == skipName && skipName != "" {
+			return nil
+		}
+		name := filepath.ToSlash(filepath.Join(dst, rel))
+		if info.IsDir() {
+			return tw.WriteHeader(&tar.Header{Name: name + "/", Mode: 0755, Typeflag: tar.TypeDir})
+		}
+		return addFileToTar(tw, path, name, 0644)
+	})
 }
