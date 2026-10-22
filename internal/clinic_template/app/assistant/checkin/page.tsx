@@ -39,7 +39,7 @@ export default function CheckInPage() {
     const todayStr = formatLocalDate(new Date());
 
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const res = await fetch(`${url}/api/appointments`);
       if (res.ok) {
         const data = await res.json();
@@ -143,7 +143,7 @@ export default function CheckInPage() {
 
     // Sync to backend
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const backendStatus = changed.status === 'presente' ? 'confirmed' : changed.status === 'aguardando' ? 'waiting' : changed.status === 'ausente' ? 'cancelled' : 'scheduled';
       await fetch(`${url}/api/appointments/${id}`, {
         method: 'PUT',

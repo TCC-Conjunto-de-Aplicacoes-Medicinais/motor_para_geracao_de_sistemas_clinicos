@@ -37,7 +37,7 @@ export default function ManagementDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const url = backendUrl || 'http://localhost:8081';
+        const url = backendUrl;
         const resApt = await fetch(`${url}/api/appointments`);
         if (resApt.ok) {
           const data = await resApt.json();

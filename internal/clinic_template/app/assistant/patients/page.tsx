@@ -47,7 +47,7 @@ export default function AssistantPatientsPage() {
 
   const loadPatients = async () => {
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const res = await fetch(`${url}/api/patients`);
       if (res.ok) {
         const data = await res.json();

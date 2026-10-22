@@ -29,7 +29,7 @@ export default function ManagementBillingPage() {
       let appointments: any[] = [];
 
       try {
-        const url = backendUrl || 'http://localhost:8081';
+        const url = backendUrl;
         const res = await fetch(`${url}/api/appointments`);
         if (res.ok) {
           const data = await res.json();

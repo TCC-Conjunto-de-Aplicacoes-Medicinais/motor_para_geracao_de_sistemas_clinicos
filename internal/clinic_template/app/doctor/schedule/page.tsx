@@ -51,7 +51,7 @@ export default function SchedulePage() {
   // Carregar agendamentos do backend e localStorage
   const loadAppointments = async () => {
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const res = await fetch(`${url}/api/appointments`);
       if (res.ok) {
         const data = await res.json();
@@ -151,7 +151,7 @@ export default function SchedulePage() {
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
 
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const dt = new Date(`${selectedSlot.date}T${String(selectedSlot.hour).padStart(2, '0')}:00:00`);
       await fetch(`${url}/api/appointments`, {
         method: 'POST',
@@ -180,7 +180,7 @@ export default function SchedulePage() {
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
 
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       await fetch(`${url}/api/appointments/${id}`, { method: 'DELETE' });
     } catch {}
 

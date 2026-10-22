@@ -89,7 +89,7 @@ export default function AssistantSchedulePage() {
   // Load appointments & patients
   const loadAppointments = async () => {
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const res = await fetch(`${url}/api/appointments`);
       if (res.ok) {
         const data = await res.json();
@@ -140,7 +140,7 @@ export default function AssistantSchedulePage() {
 
   const loadPatients = async () => {
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const res = await fetch(`${url}/api/patients`);
       if (res.ok) {
         const data = await res.json();
@@ -216,7 +216,7 @@ export default function AssistantSchedulePage() {
 
     // Send to backend
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       await fetch(`${url}/api/appointments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -246,7 +246,7 @@ export default function AssistantSchedulePage() {
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
 
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       const backendStatus = newStatus === 'Confirmado' ? 'confirmed' : newStatus === 'Aguardando' ? 'waiting' : newStatus === 'Em Sala' ? 'in_progress' : newStatus === 'Finalizado' ? 'completed' : 'cancelled';
       await fetch(`${url}/api/appointments/${id}`, {
         method: 'PUT',
@@ -267,7 +267,7 @@ export default function AssistantSchedulePage() {
     localStorage.setItem('clinic_appointments', JSON.stringify(updated));
 
     try {
-      const url = backendUrl || 'http://localhost:8081';
+      const url = backendUrl;
       await fetch(`${url}/api/appointments/${id}`, { method: 'DELETE' });
     } catch {}
 

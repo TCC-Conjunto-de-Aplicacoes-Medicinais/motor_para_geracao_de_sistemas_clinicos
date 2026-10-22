@@ -60,7 +60,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   const [newNote, setNewNote] = useState('');
 
   const [medications, setMedications] = useState<Array<{ name: string; freq: string; since: string }>>([]);
-  const [allergies, setAllergies] = useState<string[]>(['Dipirona Monoidratada', 'Penicilina G', 'Poeira/Ácaros']);
+  const [allergies, setAllergies] = useState<string[]>([]);
   const [files, setFiles] = useState<Array<{ id: string; name: string; date: string; size: string; type: string }>>([]);
   const [prescriptions, setPrescriptions] = useState<Array<{ type: string; date: string; status: string; signed: boolean; print: boolean }>>([]);
 
@@ -154,7 +154,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     setPatientData(loadedPatient);
 
     // Medicamentos em uso vêm do banco da clínica (não do navegador).
-    fetch(`${backendUrl || 'http://localhost:8081'}/api/medications?patient_id=${patientId}`)
+    fetch(`${backendUrl}/api/medications?patient_id=${patientId}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((list: Array<{ name: string; freq: string; since: string }>) => {
         if (Array.isArray(list)) setMedications(list.map((m) => ({ name: m.name, freq: m.freq, since: m.since })));
@@ -162,7 +162,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       .catch(() => {});
 
     // O cadastro do banco da clínica prevalece sobre o fallback local (senão o nome aparece como "Paciente #id").
-    fetch(`${backendUrl || 'http://localhost:8081'}/api/patients/${patientId}`)
+    fetch(`${backendUrl}/api/patients/${patientId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((p) => {
         if (!p) return;
@@ -210,7 +210,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
     // Helper para identificar exames reais (excluindo prescrições e anotações clínicas)
     // Sincroniza em tempo real com registros e exames persistidos no SQLite da clínica
-    const targetBackend = backendUrl || 'http://localhost:8081';
+    const targetBackend = backendUrl;
     fetch(`${targetBackend}/api/records?patient_id=${patientId}`)
       .then((r) => r.json())
       .then((records: any[]) => {
@@ -295,7 +295,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       setNotes(updatedNotes);
       persistPatientData({ notes: updatedNotes });
       // Gravada no banco da clínica e replicada ao centralizador (mesmo caminho dos laudos).
-      fetch(`${backendUrl || 'http://localhost:8081'}/api/records`, {
+      fetch(`${backendUrl}/api/records`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -367,7 +367,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
 
     // Medicamento gravado no banco da clínica (a lista da tela vem dessa mesma tabela).
     try {
-      await fetch(`${backendUrl || 'http://localhost:8081'}/api/medications`, {
+      await fetch(`${backendUrl}/api/medications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: params?.id || '1', name: medName, freq: medFreq }),
@@ -449,9 +449,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
   const handleSyncWithCentral = async () => {
     setIsSyncingCentral(true);
     try {
-      const endpoint = backendUrl 
-        ? `${backendUrl}/api/patients/import-central` 
-        : 'http://localhost:8081/api/patients/import-central';
+      const endpoint = `${backendUrl}/api/patients/import-central`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -460,7 +458,7 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       if (res.ok) {
         const data = await res.json();
         showToast(`✓ Linha do tempo sincronizada! ${data.records_imported || 0} registro(s) obtidos via Cassandra/FHIR.`);
-        const targetBackend = backendUrl || 'http://localhost:8081';
+        const targetBackend = backendUrl;
         const recRes = await fetch(`${targetBackend}/api/records?patient_id=${params?.id || '1'}`);
         if (recRes.ok) {
           const list = await recRes.json();
@@ -1731,10 +1729,7 @@ HASH SHA-256: 9f83a21b38cf4029afbf4c8996fb92427ae41e4649b934ca495991b7852b855
           <section className="glass-panel" style={{ padding: '1.2rem', backgroundColor: 'var(--bg-card)' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '1rem' }}>🕐 Últimas Consultas</h2>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {[
-                { date: '10/04', summary: 'Retorno — Avaliação de exames', doc: 'Dr. Silva' },
-                { date: '15/03', summary: 'Consulta — Dor torácica', doc: 'Dr. Silva' }
-              ].map((c, i) => (
+              {notes.slice(0, 2).map((n, i) => ({ date: n.date, summary: n.text, doc: doctorName })).map((c, i) => (
                 <div key={i} style={{ display: 'flex', gap: '1rem', padding: '0.8rem 0', borderBottom: i === 0 ? '1px solid var(--border-color)' : 'none' }}>
                   <div style={{ width: '4px', borderRadius: '4px', backgroundColor: 'var(--color-accent)' }} />
                   <div style={{ flex: 1 }}>

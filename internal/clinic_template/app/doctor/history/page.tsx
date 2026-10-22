@@ -13,7 +13,7 @@ export default function HistoryPage() {
   const [stats, setStats] = useState({ week: 0, month: 0, cancelled: 0 });
 
   useEffect(() => {
-    const base = backendUrl || 'http://localhost:8081';
+    const base = backendUrl;
     fetch(`${base}/api/appointments`)
       .then(res => (res.ok ? res.json() : []))
       .then((list: any[]) => {

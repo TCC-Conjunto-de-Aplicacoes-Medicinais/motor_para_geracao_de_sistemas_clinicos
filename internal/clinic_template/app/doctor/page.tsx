@@ -55,7 +55,7 @@ export default function DoctorDashboard() {
       scheduled: 'Agendado', confirmed: 'Confirmado', waiting: 'Aguardando',
       in_progress: 'Em Sala', completed: 'Concluído', cancelled: 'Cancelado',
     };
-    fetch(`${backendUrl || 'http://localhost:8081'}/api/appointments`)
+    fetch(`${backendUrl}/api/appointments`)
       .then((r) => (r.ok ? r.json() : []))
       .then((list: Array<{ id: string; patient_id: string; patient_name: string; date_time: string; reason: string; status: string }>) => {
         const today = (Array.isArray(list) ? list : [])
