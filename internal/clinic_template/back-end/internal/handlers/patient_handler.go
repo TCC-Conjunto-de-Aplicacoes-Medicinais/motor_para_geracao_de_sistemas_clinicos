@@ -230,7 +230,7 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 
 	// Sem consentimento vigente o centralizador recusa o bundle: informa o motivo em vez de falhar em silêncio.
 	if fhirErr != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "barramento central indisponível"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "barramento central indisponível: " + fhirErr.Error()})
 		return
 	}
 	defer fhirResp.Body.Close()
@@ -293,6 +293,18 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 				}
 
 				resID, _ := res["id"].(string)
+
+				// Medicamento viaja como prescrição: cria o registro de medicamento para a aba de medicamentos.
+				if name, isMed := strings.CutPrefix(title, "Prescrição Farmacológica: "); isMed {
+					freq := ""
+					if i := strings.LastIndex(conclusion, "Posologia: "); i >= 0 {
+						freq = conclusion[i+len("Posologia: "):]
+					}
+					var med models.Medication
+					if database.DB.Where("patient_id = ? AND name = ?", localPatient.ID, name).First(&med).Error != nil {
+						database.DB.Create(&models.Medication{ID: uuid.New().String(), PatientID: localPatient.ID, Name: name, Frequency: freq, Since: "Importado", CreatedAt: time.Now()})
+					}
+				}
 
 				// Evita duplicatas se já foi importado
 				var existing models.MedicalRecord

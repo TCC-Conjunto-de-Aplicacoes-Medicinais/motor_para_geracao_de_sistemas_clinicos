@@ -215,11 +215,14 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
       .then((r) => r.json())
       .then((records: any[]) => {
         if (Array.isArray(records) && records.length > 0) {
-          // Anotações do banco da clínica (a fonte; o navegador não guarda a cópia definitiva).
-          const dbNotes = records
-            .filter((rec: any) => rec.diagnosis === 'Anotação clínica')
-            .map((rec: any) => ({ date: new Date(rec.date).toLocaleDateString('pt-BR'), text: rec.notes }));
-          if (dbNotes.length > 0) setNotes(dbNotes);
+          // Histórico do banco da clínica: todos os registros (anotações, laudos importados, prescrições).
+          const dbNotes = records.map((rec: any) => ({
+            date: new Date(rec.date).toLocaleDateString('pt-BR'),
+            text: rec.diagnosis === 'Anotação clínica'
+              ? rec.notes
+              : `${rec.diagnosis || 'Registro clínico'}${rec.notes ? ` — ${rec.notes}` : ''}`,
+          }));
+          setNotes(dbNotes);
 
           const recFiles = records
             .filter((rec: any) => isExamDiagnosis(rec.diagnosis, rec.fhir_resource_id))
