@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import StatCard from '../components/StatCard';
+import { useTheme } from '../components/ThemeProvider';
 
 interface AppointmentItem {
   id: number;
@@ -17,6 +18,7 @@ interface AppointmentItem {
 
 export default function DoctorDashboard() {
   const router = useRouter();
+  const { backendUrl } = useTheme();
   const [doctorName, setDoctorName] = useState('Dr. Silva');
   const [reminders, setReminders] = useState<Array<{ id: number; text: string; done: boolean }>>([]);
   const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
@@ -45,34 +47,34 @@ export default function DoctorDashboard() {
       try {
         setReminders(JSON.parse(savedReminders));
       } catch {}
-    } else {
-      const initialReminders = [
-        { id: 1, text: 'Revisar exames laboratoriais de Carlos Eduardo', done: false },
-        { id: 2, text: 'Prescrever medicação de retorno para Maria Santos', done: true },
-        { id: 3, text: 'Avaliar laudo de ECG 12 derivações com IA', done: false },
-      ];
-      setReminders(initialReminders);
-      localStorage.setItem('clinic_doctor_reminders', JSON.stringify(initialReminders));
     }
 
-    // Agendamentos Reais (base POHINC)
-    const savedApts = localStorage.getItem('clinic_appointments');
-    if (savedApts) {
-      try {
-        setAppointments(JSON.parse(savedApts));
-        return;
-      } catch {}
-    }
-
+    // Consultas de hoje vêm do banco da clínica (sem dados de exemplo).
     const todayStr = new Date().toISOString().split('T')[0];
-    const baseAppointments: AppointmentItem[] = [
-      { id: 1, date: todayStr, time: '08:30', hour: 8, patient: 'Maria Santos', patientId: '1', type: 'Retorno Cardiológico', status: 'Aguardando' },
-      { id: 2, date: todayStr, time: '09:30', hour: 9, patient: 'Carlos Eduardo Oliveira', patientId: '2', type: 'Consulta — Hipertensão', status: 'Confirmado' },
-      { id: 3, date: todayStr, time: '11:00', hour: 11, patient: 'Ana Beatriz Lima', patientId: '3', type: 'Avaliação de ECG com IA', status: 'Em Sala' },
-      { id: 4, date: todayStr, time: '14:30', hour: 14, patient: 'Roberto Ferreira Costa', patientId: '4', type: 'Exame de Rotina', status: 'Agendado' },
-    ];
-    setAppointments(baseAppointments);
-    localStorage.setItem('clinic_appointments', JSON.stringify(baseAppointments));
+    const statusLabel: Record<string, string> = {
+      scheduled: 'Agendado', confirmed: 'Confirmado', waiting: 'Aguardando',
+      in_progress: 'Em Sala', completed: 'Concluído', cancelled: 'Cancelado',
+    };
+    fetch(`${backendUrl || 'http://localhost:8081'}/api/appointments`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: Array<{ id: string; patient_id: string; patient_name: string; date_time: string; reason: string; status: string }>) => {
+        const today = (Array.isArray(list) ? list : [])
+          .map((a) => ({ ...a, when: new Date(a.date_time) }))
+          .filter((a) => a.when.toISOString().split('T')[0] === todayStr || a.when.toLocaleDateString('en-CA') === todayStr);
+        setAppointments(
+          today.map((a, i) => ({
+            id: i + 1,
+            date: todayStr,
+            time: a.when.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            hour: a.when.getHours(),
+            patient: a.patient_name,
+            patientId: a.patient_id,
+            type: a.reason,
+            status: statusLabel[a.status] || a.status,
+          })).sort((x, y) => (x.hour ?? 0) - (y.hour ?? 0))
+        );
+      })
+      .catch(() => setAppointments([]));
   }, []);
 
   const toggleReminder = (id: number) => {
