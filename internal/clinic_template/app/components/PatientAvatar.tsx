@@ -9,26 +9,9 @@ interface PatientAvatarProps {
   style?: React.CSSProperties;
 }
 
-const DEFAULT_AVATARS: Record<string, string> = {
-  'maria santos': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=256',
-  'carlos eduardo': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256',
-  'carlos eduardo oliveira': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=256',
-  'ana beatriz': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256',
-  'ana beatriz lima': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=256',
-  'roberto ferreira': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256',
-  'roberto ferreira costa': 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=256',
-};
-
-function getAvatarUrl(name: string, gender?: string): string {
-  const normalized = (name || '').toLowerCase().trim();
-  for (const [key, url] of Object.entries(DEFAULT_AVATARS)) {
-    if (normalized.includes(key)) return url;
-  }
-  // Fallback para novo paciente
-  if (gender === 'F' || normalized.endsWith('a') || normalized.includes('ana') || normalized.includes('maria')) {
-    return `https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=256`;
-  }
-  return `https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=256`;
+// Sem fotos de exemplo: o avatar mostra a inicial do paciente.
+function getAvatarUrl(_name: string, _gender?: string): string {
+  return '';
 }
 
 export default function PatientAvatar({ name, size = 44, gender, style }: PatientAvatarProps) {
@@ -41,7 +24,7 @@ export default function PatientAvatar({ name, size = 44, gender, style }: Patien
     ? 'linear-gradient(135deg, #EC4899, #8B5CF6)'
     : 'linear-gradient(135deg, #2563EB, #0D9488)';
 
-  if (imgError) {
+  if (imgError || !avatarUrl) {
     return (
       <div
         style={{
