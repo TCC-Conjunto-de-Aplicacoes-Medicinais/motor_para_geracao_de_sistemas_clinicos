@@ -82,7 +82,10 @@ func CreatePatientHandler(c *gin.Context) {
 		})
 
 		client := &http.Client{Timeout: 4 * time.Second}
-		_, _ = client.Post(centralBase+"/api/patients/sync", "application/json", bytes.NewBuffer(syncPayload))
+		req, _ := http.NewRequest(http.MethodPost, centralBase+"/api/patients/sync", bytes.NewBuffer(syncPayload))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+		_, _ = client.Do(req)
 	}(input)
 
 	c.JSON(http.StatusCreated, input)
@@ -119,7 +122,9 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 	var patientName string
 	var birthDate string
 
-	resp, err := client.Get(searchURL)
+	searchReq, _ := http.NewRequest(http.MethodGet, searchURL, nil)
+	searchReq.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+	resp, err := client.Do(searchReq)
 	if err == nil && resp.StatusCode == http.StatusOK {
 		var searchResult struct {
 			Found   bool `json:"found"`
@@ -140,14 +145,15 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 
 	// Se não achou na rota pública ou Centralizador offline, gera dados canônicos realistas para demonstração acadêmica
 	if centralPatientID == "" {
-		centralPatientID = "1"
-		patientName = "Maria Souza (Importada POHINC)"
-		birthDate = "1981-05-14"
+		c.JSON(http.StatusNotFound, gin.H{"error": "paciente não encontrado no centralizador"})
+		return
 	}
 
 	// 2. Tenta buscar o Bundle FHIR do paciente no Centralizador
 	fhirURL := fmt.Sprintf("%s/api/patients/%s/fhir-bundle", centralBase, centralPatientID)
-	fhirResp, fhirErr := client.Get(fhirURL)
+	fhirReq, _ := http.NewRequest(http.MethodGet, fhirURL, nil)
+	fhirReq.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+	fhirResp, fhirErr := client.Do(fhirReq)
 
 	var fhirBundle struct {
 		ResourceType string `json:"resourceType"`
@@ -175,10 +181,10 @@ func ImportPatientFromCentralHandler(c *gin.Context) {
 			Name:      patientName,
 			CPF:       req.CPF,
 			BirthDate: birthDate,
-			Gender:    "Feminino",
-			Phone:     "(11) 98765-4321",
-			Email:     "paciente.importado@pohinc.com.br",
-			Address:   "Dados importados via Barramento Nacional POHINC (HL7 FHIR R4)",
+			Gender:    "",
+			Phone:     "",
+			Email:     "",
+			Address:   "",
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}

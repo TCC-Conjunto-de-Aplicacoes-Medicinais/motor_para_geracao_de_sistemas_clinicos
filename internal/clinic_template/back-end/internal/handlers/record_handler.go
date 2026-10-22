@@ -127,7 +127,10 @@ func dispatchFHIRRecord(record models.MedicalRecord) {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(centralBusURL, "application/json", bytes.NewBuffer(payloadBytes))
+	req, _ := http.NewRequest(http.MethodPost, centralBusURL, bytes.NewBuffer(payloadBytes))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Clinic-Key", os.Getenv("CENTRAL_BUS_KEY"))
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("[FHIR Dispatcher] Barramento central indisponível (continuando localmente): %v", err)
 		return

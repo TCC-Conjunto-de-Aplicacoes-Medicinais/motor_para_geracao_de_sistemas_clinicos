@@ -77,11 +77,16 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 			} else {
 				// 3. Semáforo FinOps de Concorrência (MAX_CONCURRENT_AWS_INSTANCES)
 				maxAWS := getEnvInt("MAX_CONCURRENT_AWS_INSTANCES", 1)
-				activeTimersLock.Lock()
-				currentAWS := len(activeTimers)
-				activeTimersLock.Unlock()
+				currentAWS := countActiveAWSClinics(filepath.Join(".", ".states", "aws"))
 
-				if currentAWS >= maxAWS {
+				dailyMax := getEnvInt("MAX_CLINICS_PER_DAY", 20)
+				if countClinicsCreatedOn(filepath.Join(".", ".states", "aws"), time.Now()) >= dailyMax {
+					env = "local"
+					isSandbox = true
+					sandboxReason = fmt.Sprintf("Limite diário de %d clínicas na AWS atingido. Redirecionado para Sandbox.", dailyMax)
+					log.Printf("[Engine] ⚠️ Limite diário FinOps: %s", sandboxReason)
+				}
+				if !isSandbox && currentAWS >= maxAWS {
 					env = "local"
 					isSandbox = true
 					sandboxReason = fmt.Sprintf("Limite FinOps atingido (%d/%d instâncias ativas na AWS). Redirecionado para Sandbox para preservar quota.", currentAWS, maxAWS)
@@ -166,9 +171,6 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 			"AWS_ACCESS_KEY_ID="+cfg.AWSAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY="+cfg.AWSSecretAccessKey,
 		)
-		if cfg.AWSSessionToken != "" {
-			envVars = append(envVars, "AWS_SESSION_TOKEN="+cfg.AWSSessionToken)
-		}
 	}
 
 	// 8. Executar Terraform Init
@@ -199,7 +201,7 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 
 	// FinOps Watchdog: Agendar desligamento automático em 5 minutos para conter custos na AWS (< US$ 10)
 	if env == "aws" {
-		destroyMinutes := 5
+		destroyMinutes := defaultAutoDestroyMinutes
 		if envMin := os.Getenv("AUTO_DESTROY_MINUTES"); envMin != "" {
 			if m, err := strconv.Atoi(envMin); err == nil && m > 0 {
 				destroyMinutes = m
@@ -255,7 +257,7 @@ func updateStatus(workDir, status, message, errorMsg, clinicURL, healthURL strin
 	}
 
 	if status == "ready" && strings.Contains(filepath.ToSlash(workDir), "/aws/") {
-		destroyMinutes := 5
+		destroyMinutes := defaultAutoDestroyMinutes
 		if envMin := os.Getenv("AUTO_DESTROY_MINUTES"); envMin != "" {
 			if m, err := strconv.Atoi(envMin); err == nil && m > 0 {
 				destroyMinutes = m
@@ -265,12 +267,27 @@ func updateStatus(workDir, status, message, errorMsg, clinicURL, healthURL strin
 		statusMap["expires_at"] = time.Now().Add(time.Duration(destroyMinutes) * time.Minute).Format(time.RFC3339)
 	}
 
+	// Preserva a data de criação do registro (usada no limite diário).
+	if prev, err := os.ReadFile(filepath.Join(workDir, "status.json")); err == nil {
+		var old map[string]interface{}
+		if json.Unmarshal(prev, &old) == nil {
+			if created, ok := old["created_at"].(string); ok {
+				statusMap["created_at"] = created
+			}
+		}
+	}
+	if _, ok := statusMap["created_at"]; !ok {
+		statusMap["created_at"] = time.Now().Format(time.RFC3339)
+	}
+
 	data, _ := json.Marshal(statusMap)
 	_ = os.WriteFile(filepath.Join(workDir, "status.json"), data, 0644)
 }
 
 // Destroy desmonta 100% da infraestrutura provisionada no Terraform ou Sandbox
 func Destroy(clinicID string, env string, cfg *config.Config) error {
+	destroyMu.Lock()
+	defer destroyMu.Unlock()
 	activeTimersLock.Lock()
 	if t, exists := activeTimers[clinicID]; exists {
 		t.Stop()
@@ -287,6 +304,7 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 		return fmt.Errorf("diretório de estado não encontrado para clínica %s no ambiente %s", clinicID, env)
 	}
 
+	updateStatus(workDir, "destroying", "Destruindo infraestrutura na AWS...", "", "", "")
 	tfStatePath := filepath.Join(workDir, "terraform.tfstate")
 	if _, err := os.Stat(tfStatePath); err == nil {
 		log.Printf("[Engine] 🛑 Executando terraform destroy para a clínica %s no ambiente %s...", clinicID, env)
@@ -298,13 +316,11 @@ func Destroy(clinicID string, env string, cfg *config.Config) error {
 				"AWS_ACCESS_KEY_ID="+cfg.AWSAccessKeyID,
 				"AWS_SECRET_ACCESS_KEY="+cfg.AWSSecretAccessKey,
 			)
-			if cfg.AWSSessionToken != "" {
-				envVars = append(envVars, "AWS_SESSION_TOKEN="+cfg.AWSSessionToken)
-			}
 		}
 
 		if err := runCmd(workDir, envVars, "terraform", "destroy", "-auto-approve"); err != nil {
-			log.Printf("[Engine] ⚠️ Aviso ao destruir via terraform: %v", err)
+			updateStatus(workDir, "destroy_failed", "Falha ao destruir a infraestrutura; nova tentativa automática em breve", err.Error(), "", "")
+			return fmt.Errorf("falha no terraform destroy: %w", err)
 		}
 	}
 
@@ -733,7 +749,6 @@ func mapPayloadToTFVars(p *models.SystemPayload, cfg *config.Config) map[string]
 		"aws_region":        cfg.AWSRegion,
 		"aws_access_key":    cfg.AWSAccessKeyID,
 		"aws_secret_key":    cfg.AWSSecretAccessKey,
-		"aws_session_token": cfg.AWSSessionToken,
 		"dr_enabled":        p.Technical.HasDisasterRecovery,
 		"module_doctor":     p.Modules.Doctor.Enabled,
 		"module_billing":    p.Modules.Management.Features.BillingControl,

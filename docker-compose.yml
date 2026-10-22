@@ -1,0 +1,19 @@
+# No VPS: o build é feito no notebook e a imagem é baixada do Docker Hub (evita pesar a RAM do servidor).
+# Defina MOTOR_IMAGE=<usuario>/motor-demo:latest no .env do servidor.
+services:
+  motor:
+    image: ${MOTOR_IMAGE:?defina MOTOR_IMAGE no .env}
+    container_name: motor_demo
+    restart: always
+    env_file: .env
+    environment:
+      PORT: "8005"
+      ALLOW_LOCAL_GENERATE: "false"
+    ports:
+      - "8005:8005"
+    volumes:
+      - motor_states:/app/.states
+    mem_limit: 512m
+
+volumes:
+  motor_states:

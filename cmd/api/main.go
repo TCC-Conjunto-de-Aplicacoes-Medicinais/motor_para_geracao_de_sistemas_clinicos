@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,6 +17,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
+	engine.StartFinOpsSweeper(cfg)
 
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -34,6 +36,12 @@ func main() {
 		handleGenerateLocal(w, r, cfg)
 	})
 
+	// Painel de controle: clínicas da AWS com status e prazo de expiração (protegido pelo X-Motor-Token).
+	http.HandleFunc("/clinics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(engine.ListAWSClinics())
+	})
+
 	http.HandleFunc("/destroy", func(w http.ResponseWriter, r *http.Request) {
 		handleDestroy(w, r, cfg)
 	})
@@ -44,7 +52,7 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Printf("Motor de Geração IaC iniciado na porta %s...", cfg.Port)
-	if err := http.ListenAndServe(addr, nil); err != nil {
+	if err := http.ListenAndServe(addr, requireToken(cfg.MotorToken, http.DefaultServeMux)); err != nil {
 		log.Fatalf("Falha ao iniciar o servidor: %v", err)
 	}
 }
@@ -88,9 +96,19 @@ func handleGenerate(w http.ResponseWriter, r *http.Request, cfg *config.Config) 
 	json.NewEncoder(w).Encode(result)
 }
 
+// localGenerateAllowed: o modo local (sem AWS) só vale onde ALLOW_LOCAL_GENERATE=true.
+// Fica desligado no servidor e ligado só na máquina do admin.
+func localGenerateAllowed() bool {
+	return os.Getenv("ALLOW_LOCAL_GENERATE") == "true"
+}
+
 func handleGenerateLocal(w http.ResponseWriter, r *http.Request, cfg *config.Config) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+	if !localGenerateAllowed() {
+		http.Error(w, "Geração local desabilitada neste servidor", http.StatusForbidden)
 		return
 	}
 
@@ -220,5 +238,26 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"clinic_id":   clinicID,
 		"environment": env,
 		"status":      status,
+	})
+}
+
+// requireToken exige o header X-Motor-Token em todas as rotas, exceto /health.
+// Sem MOTOR_TOKEN configurado, rejeita tudo (fail closed).
+func requireToken(token string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if token == "" {
+			http.Error(w, "motor sem token configurado", http.StatusServiceUnavailable)
+			return
+		}
+		got := r.Header.Get("X-Motor-Token")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
+			http.Error(w, "não autorizado", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }

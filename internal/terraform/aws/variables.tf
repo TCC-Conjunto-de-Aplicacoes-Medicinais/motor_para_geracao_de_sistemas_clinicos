@@ -58,10 +58,3 @@ variable "aws_secret_key" {
   sensitive   = true
 }
 
-variable "aws_session_token" {
-  type        = string
-  description = "Session token AWS opcional"
-  default     = ""
-  sensitive   = true
-}
-

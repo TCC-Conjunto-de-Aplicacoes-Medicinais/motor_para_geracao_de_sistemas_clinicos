@@ -12,8 +12,8 @@ type Config struct {
 	AWSRegion          string
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
-	AWSSessionToken    string
 	AWSBucketName      string
+	MotorToken         string
 }
 
 // LoadConfig reads the .env file and populates the Config struct.
@@ -27,8 +27,8 @@ func LoadConfig() *Config {
 		AWSRegion:          getEnv("AWS_REGION", "us-east-1"),
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		AWSSessionToken:    getEnv("AWS_SESSION_TOKEN", ""),
 		AWSBucketName:      getEnv("AWS_BUCKET_NAME", ""),
+		MotorToken:         getEnv("MOTOR_TOKEN", ""),
 	}
 }
 

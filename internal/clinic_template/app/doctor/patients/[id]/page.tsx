@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '../../../components/ThemeProvider';
 import PatientAvatar from '../../../components/PatientAvatar';
 
+function isExamDiagnosis(diag: string, fhirId?: string) {
+    const d = (diag || '').toLowerCase();
+    if (d.includes('prescrição') || d.includes('prescricao') || d.includes('receituário') || d.includes('receituario') || d.includes('atestado')) {
+      return false;
+    }
+    return d.includes('exame') || d.includes('laudo') || d.includes('ecg') || d.includes('eletro') || d.includes('ecocardiograma') || d.includes('hemograma') || d.includes('doppler') || (fhirId && (fhirId.includes('diagnostic-report') || fhirId.includes('diag-')));
+}
+
 export default function PatientRecordPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { backendUrl } = useTheme();
@@ -343,14 +351,6 @@ export default function PatientRecordPage({ params }: { params: { id: string } }
     setPrescriptions(defaultPrescriptions);
 
     // Helper para identificar exames reais (excluindo prescrições e anotações clínicas)
-    const isExamDiagnosis = (diag: string, fhirId?: string) => {
-      const d = (diag || '').toLowerCase();
-      if (d.includes('prescrição') || d.includes('prescricao') || d.includes('receituário') || d.includes('receituario') || d.includes('atestado')) {
-        return false;
-      }
-      return d.includes('exame') || d.includes('laudo') || d.includes('ecg') || d.includes('eletro') || d.includes('ecocardiograma') || d.includes('hemograma') || d.includes('doppler') || (fhirId && (fhirId.includes('diagnostic-report') || fhirId.includes('diag-')));
-    };
-
     // Sincroniza em tempo real com registros e exames persistidos no SQLite da clínica
     const targetBackend = backendUrl || 'http://localhost:8081';
     fetch(`${targetBackend}/api/records?patient_id=${patientId}`)

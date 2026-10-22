@@ -1,0 +1,8 @@
+.git
+.states
+.env
+api.exe
+**/node_modules
+internal/clinic_template/.next
+internal/clinic_template/back-end/clinic_backend
+test

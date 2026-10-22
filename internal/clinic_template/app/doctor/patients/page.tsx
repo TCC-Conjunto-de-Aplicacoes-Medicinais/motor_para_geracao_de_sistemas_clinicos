@@ -150,26 +150,12 @@ export default function PatientsPage() {
         router.push(`/doctor/patients/${importedPatient.id}`);
       }, 1500);
     } catch (err: any) {
-      // Fallback gracioso para garantir a experiência contínua em apresentações acadêmicas
-      const demoImported: PatientItem = {
-        id: '1',
-        name: 'Maria Santos (Importada POHINC)',
-        age: 45,
-        lastVisit: 'Hoje (HL7 FHIR)',
-        status: 'Ativo',
-        cpf,
-        importedFromCentral: true,
-      };
-      setPatients(prev => [demoImported, ...prev.filter(p => p.id !== '1')]);
+      // Sem paciente fictício: a falha é mostrada ao médico, sem alterar a lista.
       setFeedback({
-        type: 'success',
-        message: `Paciente Maria Santos integrado com sucesso via HL7 FHIR!`,
-        details: `1 exame prévio de eletrocardiograma (Clínica Sorriso) incorporado ao prontuário.`,
+        type: 'error',
+        message: 'Não foi possível importar o paciente do centralizador.',
+        details: err?.message || 'Verifique a conexão com o barramento POHINC.',
       });
-      setTimeout(() => {
-        setIsModalOpen(false);
-        router.push(`/doctor/patients/1`);
-      }, 1400);
     } finally {
       setLoading(false);
     }
