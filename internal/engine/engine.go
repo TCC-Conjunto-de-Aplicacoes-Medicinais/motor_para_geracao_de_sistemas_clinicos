@@ -827,3 +827,20 @@ func runCmd(dir string, envVars []string, name string, args ...string) error {
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
+
+// DestroyAllLocal desliga as clínicas locais já geradas: um sistema local novo substitui o anterior.
+// Só mexe em .states/local; as clínicas da AWS nunca passam por aqui.
+func DestroyAllLocal(cfg *config.Config) {
+	entries, err := os.ReadDir(filepath.Join(".", ".states", "local"))
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if err := Destroy(e.Name(), "local", cfg); err != nil {
+			log.Printf("[local] falha ao desligar a clínica local anterior %s: %v", e.Name(), err)
+		}
+	}
+}

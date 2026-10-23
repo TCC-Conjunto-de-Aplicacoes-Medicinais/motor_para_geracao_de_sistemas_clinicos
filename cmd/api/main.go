@@ -148,6 +148,9 @@ func handleGenerateLocal(w http.ResponseWriter, r *http.Request, cfg *config.Con
 		adminEmail = engine.DefaultAdminEmail
 	}
 
+	// Um sistema local novo substitui o anterior (a AWS não é afetada).
+	engine.DestroyAllLocal(cfg)
+
 	result, err := engine.Run(&payload, cfg, adminEmail)
 	if err != nil {
 		log.Printf("[API] Falha na execução do motor local: %v", err)
