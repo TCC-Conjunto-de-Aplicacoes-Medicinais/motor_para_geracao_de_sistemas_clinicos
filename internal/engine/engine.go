@@ -53,6 +53,10 @@ func Run(payload *models.SystemPayload, cfg *config.Config, requesterEmail strin
 	if env != "aws" && env != "local" {
 		return nil, fmt.Errorf("ambiente '%s' não suportado. Provedores homologados pelo artigo CONIC: 'aws' e 'local'", env)
 	}
+	// Ambiente local só roda onde o servidor liberou (notebook do administrador). No VPS fica desligado.
+	if env == "local" && os.Getenv("ALLOW_LOCAL_GENERATE") != "true" {
+		return nil, fmt.Errorf("geração local desabilitada neste servidor")
+	}
 
 	requestedEnv := env
 	isSandbox := false
